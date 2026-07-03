@@ -12,16 +12,30 @@ type AuthState = "loading" | "guest" | "member";
 
 export default function Members() {
   const [auth, setAuth] = useState<AuthState>("loading");
+  const [memberName, setMemberName] = useState<string | null>(null);
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [tab, setTab] = useState(SECTIONS[0].id);
 
   useEffect(() => {
+    const login = new URLSearchParams(window.location.search).get("login");
+    if (login === "expired" || login === "invalid") {
+      setStatus("הקישור פג תוקף או כבר שומש — אפשר לבקש קישור חדש כאן למטה.");
+    }
     fetch("/api/me")
       .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then((d) => setAuth(d?.member ? "member" : "guest"))
+      .then((d) => {
+        setAuth(d?.member ? "member" : "guest");
+        setMemberName(d?.name || null);
+      })
       .catch(() => setAuth("guest"));
   }, []);
+
+  const logout = async () => {
+    await fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
+    setAuth("guest");
+    setMemberName(null);
+  };
 
   const requestLink = async () => {
     if (!email.includes("@")) {
@@ -57,6 +71,18 @@ export default function Members() {
 
       <section className="section">
         <div className="container" style={{ maxWidth: 720 }}>
+          {auth === "member" && (
+            <Reveal>
+              <div className="card center">
+                <h3>ברוכה הבאה{memberName ? `, ${memberName}` : ""}! 🔓</h3>
+                <p style={{ color: "var(--text-soft)" }}>
+                  את מחוברת לאזור המנויות. התכנים הראשונים בדרך — ברגע שיעלו, הם יחכו לך כאן.
+                </p>
+                <button className="btn-secondary" onClick={logout}>יציאה</button>
+              </div>
+            </Reveal>
+          )}
+
           {auth !== "member" && (
             <Reveal>
               <div className="card">
@@ -121,7 +147,19 @@ export default function Members() {
                 </div>
                 <h3>{s.label}</h3>
                 <p>{s.text}</p>
-                {auth !== "member" && (
+                {auth === "member" && (
+            <Reveal>
+              <div className="card center">
+                <h3>ברוכה הבאה{memberName ? `, ${memberName}` : ""}! 🔓</h3>
+                <p style={{ color: "var(--text-soft)" }}>
+                  את מחוברת לאזור המנויות. התכנים הראשונים בדרך — ברגע שיעלו, הם יחכו לך כאן.
+                </p>
+                <button className="btn-secondary" onClick={logout}>יציאה</button>
+              </div>
+            </Reveal>
+          )}
+
+          {auth !== "member" && (
                   <p style={{ marginTop: 12, marginBottom: 0, color: "var(--text-faint)", fontSize: "0.92rem" }}>
                     התוכן ייפתח לאחר כניסה עם קישור אישי.
                   </p>

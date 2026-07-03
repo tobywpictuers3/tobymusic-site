@@ -6,5 +6,16 @@
     "directory": "./dist",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application"
-  }
+  },
+  "routes": [
+    { "pattern": "tobymusic.club", "custom_domain": true },
+    { "pattern": "www.tobymusic.club", "custom_domain": true }
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "toby-mailing-list",
+      "database_id": "1d799b4d-7d9c-4b46-b464-6a5aa0a1424d"
+    }
+  ]
 }
