@@ -1,107 +1,94 @@
 import { Link } from "react-router-dom";
-import { CONTACT, Reveal, Spark, Wave } from "../components/shared";
-
-const AREAS = [
-  {
-    to: "/performances",
-    icon: "🎹",
-    title: "הופעות",
-    text: "ליווי מוסיקלי יחיד ומופעים מלאים על במות — לאירועי נשים.",
-  },
-  {
-    to: "/orchestras",
-    icon: "🎼",
-    title: "תזמורות",
-    text: "ניהול תזמורות לימודיות ותזמורות לאירועים — מהחזרה הראשונה ועד הבמה.",
-  },
-  {
-    to: "/teaching",
-    icon: "🎵",
-    title: "הוראה",
-    text: "שיעורי פסנתר וחליל צד לתלמידות מתקדמות, עם פלטפורמת תלמידות אישית.",
-  },
-  {
-    to: "/scores",
-    icon: "✍️",
-    title: "עיבודים ותווים",
-    text: "כתיבת עיבודים, תווים והפקת מוסיקה — לפי הזמנה.",
-  },
-  {
-    to: "/blog",
-    icon: "📖",
-    title: "תכנים מוסיקליים",
-    text: "מאמרים, תובנות וחוויות מאחורי הקלעים של עולם המוזיקה.",
-  },
-  {
-    to: "/members",
-    icon: "🔒",
-    title: "אזור מנויות",
-    text: "שירים, הקלטות, הטבות ותקשורת ישירה — לרשומות התפוצה בלבד.",
-  },
-];
+import { CHARACTERS, CONTACT, Reveal, Spark, Ticker } from "../components/shared";
+import { HOME } from "../content/site";
 
 export default function Home() {
   return (
     <>
-      <section className="hero">
-        <div className="container center">
-          <div className="eyebrow">TOBY music</div>
-          <h1 className="hero-title">טובי וינברג</h1>
-          <div className="hero-roles">{CONTACT.roles}</div>
-          <Wave animate />
-          <p className="hero-slogan">"{CONTACT.slogan}"</p>
-          <div className="cta-row">
-            <a className="btn-primary" href={CONTACT.joinUrl} target="_blank" rel="noreferrer">
-              <Spark size={22} /> הצטרפי לתפוצה שלי
+      {/* ═══ הבמה ═══ */}
+      <section className="stage-hero">
+        <div className="stage-bg" aria-hidden="true" />
+        <div className="stage-fade" aria-hidden="true" />
+        <div className="stage-hero-inner container">
+          <h1>
+            {HOME.hero.subtitle}{" "}
+            <a href="#stage" className="hero-kaan">
+              {HOME.hero.linkWord}
             </a>
-            <Link className="btn-secondary" to="/contact">
-              דברי איתי
-            </Link>
-          </div>
+          </h1>
+          <p className="hero-support">{HOME.hero.supportLine}</p>
+          <p className="hero-slogan-line">
+            {HOME.hero.sloganPrefix} <b>{HOME.hero.sloganAccent}</b>
+          </p>
         </div>
+
+        {/* הדמויות על הבמה — לחיצה מובילה לעמוד, ריחוף מציג ציטוט */}
+        <nav className="stage-floor" id="stage" aria-label="עמודי האתר">
+          {HOME.stageCharacters.map((c) => (
+            <Link to={c.href} className="stage-char" key={c.href}>
+              <span className="char-quote">{c.quote}</span>
+              <img src={CHARACTERS[c.character]} alt={c.title} loading="eager" />
+              <span className="char-title">{c.title}</span>
+            </Link>
+          ))}
+        </nav>
+
+        {/* מובייל — כרטיסי דמויות */}
+        <nav className="char-cards" aria-label="עמודי האתר">
+          {HOME.stageCharacters.map((c) => (
+            <Link to={c.href} className="char-card" key={`m-${c.href}`}>
+              <img src={CHARACTERS[c.character]} alt="" loading="lazy" />
+              <span className="char-card-title">{c.title}</span>
+              <span className="char-card-text">{c.card}</span>
+            </Link>
+          ))}
+        </nav>
       </section>
 
-      <section className="section">
+      <Ticker items={HOME.marquee} />
+
+      {/* ═══ המנחה ═══ */}
+      <section className="section-tight">
         <div className="container">
           <Reveal>
-            <div className="center">
-              <h2>מה קורה כאן על הבמה</h2>
-              <p className="lead">
-                מוזיקה חיה, הוראה, ניהול תזמורות ויצירה — הכול במקום אחד, לקהל נשים.
-              </p>
+            <div
+              className="card"
+              style={{ display: "flex", alignItems: "center", gap: 24, flexWrap: "wrap" }}
+            >
+              <img
+                src={CHARACTERS.presenter}
+                alt=""
+                style={{ height: 120, filter: "var(--char-glow)" }}
+              />
+              <div style={{ flex: 1, minWidth: 240 }}>
+                <h3>{HOME.guide.floatingLabel}</h3>
+                <p style={{ marginBottom: 12 }}>{HOME.guide.welcomeText}</p>
+                <Link className="btn-secondary" to="/contact">
+                  לשיחה איתי
+                </Link>
+              </div>
             </div>
           </Reveal>
-          <div style={{ height: 34 }} />
-          <div className="grid">
-            {AREAS.map((a) => (
-              <Reveal key={a.to}>
-                <Link to={a.to} className="card-link">
-                  <div className="card">
-                    <div className="card-icon">{a.icon}</div>
-                    <h3>{a.title}</h3>
-                    <p>{a.text}</p>
-                  </div>
-                </Link>
-              </Reveal>
-            ))}
-          </div>
         </div>
       </section>
 
+      {/* ═══ תפוצה ═══ */}
       <section className="section-tight">
         <div className="container center">
-          <Wave divider />
           <Reveal>
             <h2>התפוצה המוסיקלית</h2>
             <p className="lead">
-              שירים חדשים, תובנות, אירועים וחוויות מאחורי הקלעים — במייל, בלי פרסומות.
-              חלקים מהאתר פתוחים לרשומות התפוצה בלבד.
+              שירים חדשים, תובנות, אירועים וחוויות מאחורי הקלעים — במייל, בלי פרסומות. חלקים
+              מהאתר פתוחים לרשומות התפוצה בלבד.
             </p>
             <div style={{ height: 18 }} />
             <div className="cta-row">
               <a className="btn-primary" href={CONTACT.joinUrl} target="_blank" rel="noreferrer">
                 <Spark size={22} /> אני רוצה להצטרף
               </a>
+              <Link className="btn-secondary" to="/members">
+                כבר רשומה? לאזור המנויות
+              </Link>
             </div>
           </Reveal>
         </div>

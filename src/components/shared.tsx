@@ -9,11 +9,68 @@ export const CONTACT = {
   slogan: "אומנות ואמינות, זו יצירה",
   joinUrl: "https://toby-mailing-list.w0504124161.workers.dev/join",
   studentsUrl: "https://tobymusic.lovable.app",
-  logoWhite:
-    "https://raw.githubusercontent.com/tobywpictuers3/the-music-dd01e777/main/src/assets/logo-white.png",
-  logoBlack:
-    "https://raw.githubusercontent.com/tobywpictuers3/the-music-dd01e777/main/src/assets/logo-black.png",
+  logoWhite: "/assets/brand/logo-white.webp",
+  logoBlack: "/assets/brand/logo-black.webp",
 };
+
+export const CHARACTERS: Record<string, string> = {
+  presenter: "/assets/characters/presenter.webp",
+  piano: "/assets/characters/piano.webp",
+  drums: "/assets/characters/drums.webp",
+  saxophone: "/assets/characters/saxophone.webp",
+  guitar: "/assets/characters/guitar.webp",
+  violin: "/assets/characters/violin.webp",
+  flute: "/assets/characters/flute.webp",
+  eguitar: "/assets/characters/eguitar.webp",
+};
+
+/* ---------- טיקר נע ---------- */
+export function Ticker({ items }: { items: string[] }) {
+  const row = items.map((t, i) => (
+    <span className="ticker-item" key={i}>{t}</span>
+  ));
+  return (
+    <div className="ticker" dir="ltr" aria-hidden="true">
+      <div className="ticker-track" dir="rtl">
+        {row}
+        {row.map((el, i) => <span className="ticker-item" key={`b${i}`}>{items[i]}</span>)}
+      </div>
+    </div>
+  );
+}
+
+/* ---------- Hero פנימי עם דמות ---------- */
+export function CharacterHero({
+  character,
+  titleLines,
+  introLines,
+  eyebrow,
+}: {
+  character: string;
+  titleLines: string[];
+  introLines: string[];
+  eyebrow?: string;
+}) {
+  return (
+    <section className="char-hero">
+      <div className="container char-hero-grid">
+        <div>
+          {eyebrow && <div className="eyebrow">{eyebrow}</div>}
+          <h1>
+            {titleLines.map((l, i) => (
+              <span key={i}>{l}<br /></span>
+            ))}
+          </h1>
+          <Wave animate />
+          <div className="intro-lines">
+            {introLines.map((l, i) => <p key={i}>{l}</p>)}
+          </div>
+        </div>
+        <img className="char-hero-img" src={CHARACTERS[character]} alt="" loading="eager" />
+      </div>
+    </section>
+  );
+}
 
 /* ---------- הניצוץ ---------- */
 export function Spark({ size = 24 }: { size?: number }) {
@@ -91,13 +148,13 @@ function useTheme() {
 const NAV = [
   { to: "/", label: "בית" },
   { to: "/about", label: "אודות" },
-  { to: "/performances", label: "הופעות" },
   { to: "/orchestras", label: "תזמורות" },
-  { to: "/teaching", label: "הוראה" },
-  { to: "/scores", label: "עיבודים ותווים" },
-  { to: "/blog", label: "תכנים" },
-  { to: "/members", label: "אזור מנויות 🔒" },
-  { to: "/contact", label: "קשר" },
+  { to: "/performances", label: "הופעות" },
+  { to: "/students", label: "תלמידות" },
+  { to: "/sheets", label: "תווים" },
+  { to: "/blog", label: "בלוג" },
+  { to: "/members", label: "מנויות 🔒" },
+  { to: "/contact", label: "צור קשר" },
 ];
 
 export function Header() {
@@ -164,10 +221,30 @@ export function Header() {
 
 /* ---------- Footer ---------- */
 export function Footer() {
+  const links = [
+    { to: "/", label: "דף הבית" },
+    { to: "/about", label: "אודות" },
+    { to: "/orchestras", label: "תזמורות" },
+    { to: "/performances", label: "הופעות" },
+    { to: "/students", label: "תלמידות" },
+    { to: "/sheets", label: "תווים" },
+    { to: "/blog", label: "בלוג" },
+    { to: "/contact", label: "יצירת קשר" },
+  ];
   return (
     <footer className="site-footer">
       <div className="container">
         <Wave divider />
+        <nav aria-label="ניווט מהיר" style={{ display: "flex", flexWrap: "wrap", gap: "6px 18px", justifyContent: "center", marginBottom: 18 }}>
+          {links.map((l) => (
+            <Link key={l.to} to={l.to} style={{ color: "var(--text-soft)", textDecoration: "none", fontSize: "0.92rem" }}>
+              {l.label}
+            </Link>
+          ))}
+          <a href={CONTACT.joinUrl} target="_blank" rel="noreferrer" style={{ color: "var(--accent)", textDecoration: "none", fontSize: "0.92rem", fontWeight: 700 }}>
+            להצטרף לתפוצה
+          </a>
+        </nav>
         <div className="footer-name">{CONTACT.name}</div>
         <div className="footer-roles">{CONTACT.roles}</div>
         <div className="footer-contact">

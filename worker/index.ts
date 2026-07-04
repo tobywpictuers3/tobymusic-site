@@ -158,6 +158,35 @@ async function handleApi(req: Request, env: Env, url: URL): Promise<Response> {
     });
   }
 
+  /* --- טופס קשר → contact_messages --- */
+  if (url.pathname === "/api/contact" && req.method === "POST") {
+    let body: {
+      name?: string; email?: string; phone?: string;
+      topics?: (string | undefined)[]; details?: string;
+    } = {};
+    try { body = (await req.json()) as typeof body; } catch {}
+    const name = String(body.name || "").trim().slice(0, 120);
+    const email = String(body.email || "").trim().slice(0, 160);
+    const phone = String(body.phone || "").trim().slice(0, 40);
+    const topics = (body.topics || []).filter(Boolean).join(", ").slice(0, 300);
+    const details = String(body.details || "").trim().slice(0, 4000);
+    if (!name || (!email && !phone)) return json({ error: "missing_fields" }, 400);
+
+    await env.DB.prepare(
+      `INSERT INTO contact_messages (id, name, contact_info, message, source, raw_payload_json, status, created_at)
+       VALUES (?, ?, ?, ?, 'tobymusic.club', ?, 'new', datetime('now'))`
+    )
+      .bind(
+        crypto.randomUUID(),
+        name,
+        [email, phone].filter(Boolean).join(" | "),
+        topics ? `[${topics}] ${details}` : details,
+        JSON.stringify(body)
+      )
+      .run();
+    return json({ ok: true });
+  }
+
   /* --- יציאה --- */
   if (url.pathname === "/api/auth/logout" && req.method === "POST") {
     const m = await currentMember(req, env);
