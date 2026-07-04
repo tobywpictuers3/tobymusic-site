@@ -1,11 +1,11 @@
 import { Link } from "react-router-dom";
 import { CHARACTERS, CONTACT, Reveal, Spark, Ticker } from "../components/shared";
-import { HOME } from "../content/site";
+import { HOME, HOME_MARKETING as MKT } from "../content/site";
 
 export default function Home() {
   return (
     <>
-      {/* ═══ הבמה ═══ */}
+      {/* ═══ הבמה — הזהות המוכרת + CTA ראשי מעל הקפל ═══ */}
       <section className="stage-hero">
         <div className="stage-bg" aria-hidden="true" />
         <div className="stage-fade" aria-hidden="true" />
@@ -20,9 +20,17 @@ export default function Home() {
           <p className="hero-slogan-line">
             {HOME.hero.sloganPrefix} <b>{HOME.hero.sloganAccent}</b>
           </p>
+          <div className="cta-row" style={{ justifyContent: "center", marginTop: 18 }}>
+            <Link className="btn-primary" to="/contact">
+              <Spark size={20} /> {MKT.heroCtaPrimary}
+            </Link>
+            <a className="btn-secondary" href={CONTACT.joinUrl} target="_blank" rel="noreferrer">
+              {MKT.heroCtaSecondary}
+            </a>
+          </div>
         </div>
 
-        {/* הדמויות על הבמה — לחיצה מובילה לעמוד, ריחוף מציג ציטוט */}
+        {/* הדמויות על הבמה */}
         <nav className="stage-floor" id="stage" aria-label="עמודי האתר">
           {HOME.stageCharacters.map((c) => (
             <Link to={c.href} className="stage-char" key={c.href}>
@@ -32,8 +40,6 @@ export default function Home() {
             </Link>
           ))}
         </nav>
-
-        {/* מובייל — כרטיסי דמויות */}
         <nav className="char-cards" aria-label="עמודי האתר">
           {HOME.stageCharacters.map((c) => (
             <Link to={c.href} className="char-card" key={`m-${c.href}`}>
@@ -45,21 +51,55 @@ export default function Home() {
         </nav>
       </section>
 
-      <Ticker items={HOME.marquee} />
+      {/* ═══ פס אמון — סמכות במספרים ═══ */}
+      <div className="trust-bar">
+        {MKT.trustBar.map((t) => (
+          <div key={t.label}>
+            <div className="tv">{t.value}</div>
+            <div className="tl">{t.label}</div>
+          </div>
+        ))}
+      </div>
 
-      {/* ═══ המנחה ═══ */}
+      {/* ═══ סקשן מכירתי לכל עמוד ═══ */}
+      {MKT.sections.map((s, i) => (
+        <section className={`home-sec${i % 2 === 1 ? " flip" : ""}`} key={s.href}>
+          <div className="container home-sec-grid">
+            <Link to={s.href} className="home-sec-char" aria-hidden="true" tabIndex={-1}>
+              <img src={CHARACTERS[s.character]} alt="" loading="lazy" />
+            </Link>
+            <Reveal>
+              <div>
+                <div className="kicker">{s.kicker}</div>
+                <h2>{s.headline}</h2>
+                {"quote" in s && s.quote && <p className="sec-quote">{s.quote}</p>}
+                <p style={{ maxWidth: 640 }}>{s.text}</p>
+                <Link className="sec-cta" to={s.href}>
+                  {s.cta}
+                </Link>
+              </div>
+            </Reveal>
+          </div>
+        </section>
+      ))}
+
+      {/* ═══ הוכחה חברתית — פס המלצות נע ═══ */}
+      <div className="ticker testimonials" dir="ltr" aria-hidden="true">
+        <div className="ticker-track" dir="rtl">
+          {[...MKT.testimonialStrip, ...MKT.testimonialStrip].map((t, i) => (
+            <span className="ticker-item" key={i}>
+              {t}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* ═══ המנחה — טקסט מקורי ═══ */}
       <section className="section-tight">
         <div className="container">
           <Reveal>
-            <div
-              className="card"
-              style={{ display: "flex", alignItems: "center", gap: 24, flexWrap: "wrap" }}
-            >
-              <img
-                src={CHARACTERS.presenter}
-                alt=""
-                style={{ height: 120, filter: "var(--char-glow)" }}
-              />
+            <div className="card" style={{ display: "flex", alignItems: "center", gap: 24, flexWrap: "wrap" }}>
+              <img src={CHARACTERS.presenter} alt="" style={{ height: 120, filter: "var(--char-glow)" }} />
               <div style={{ flex: 1, minWidth: 240 }}>
                 <h3>{HOME.guide.floatingLabel}</h3>
                 <p style={{ marginBottom: 12 }}>{HOME.guide.welcomeText}</p>
@@ -72,26 +112,43 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ═══ תפוצה ═══ */}
+      {/* ═══ תפוצה — בלעדיות ═══ */}
       <section className="section-tight">
         <div className="container center">
           <Reveal>
-            <h2>התפוצה המוסיקלית</h2>
-            <p className="lead">
-              שירים חדשים, תובנות, אירועים וחוויות מאחורי הקלעים — במייל, בלי פרסומות. חלקים
-              מהאתר פתוחים לרשומות התפוצה בלבד.
+            <div className="kicker" style={{ color: "var(--accent)" }}>
+              🔒 {MKT.newsletter.kicker}
+            </div>
+            <h2>{MKT.newsletter.headline}</h2>
+            <p className="lead" style={{ marginInline: "auto" }}>
+              {MKT.newsletter.text}
             </p>
-            <div style={{ height: 18 }} />
+            <div style={{ height: 16 }} />
             <div className="cta-row">
               <a className="btn-primary" href={CONTACT.joinUrl} target="_blank" rel="noreferrer">
-                <Spark size={22} /> אני רוצה להצטרף
+                <Spark size={22} /> {MKT.newsletter.ctaJoin}
               </a>
               <Link className="btn-secondary" to="/members">
-                כבר רשומה? לאזור המנויות
+                {MKT.newsletter.ctaMembers}
               </Link>
             </div>
           </Reveal>
         </div>
+      </section>
+
+      {/* ═══ CTA סופי — הפחתת חיכוך ═══ */}
+      <section className="final-cta">
+        <Reveal>
+          <h2>{MKT.finalCta.headline}</h2>
+          <p className="lead" style={{ marginInline: "auto" }}>
+            {MKT.finalCta.text}
+          </p>
+          <div style={{ height: 16 }} />
+          <Link className="btn-primary" to="/contact">
+            <Spark size={22} /> {MKT.finalCta.cta}
+          </Link>
+          <div className="reassure">{CONTACT.slogan} · {CONTACT.name} · {CONTACT.phone}</div>
+        </Reveal>
       </section>
     </>
   );

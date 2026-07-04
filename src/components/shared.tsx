@@ -186,9 +186,11 @@ export function Header() {
               {n.label}
             </NavLink>
           ))}
+          <Link to="/contact" className="header-cta">צרי קשר ✨</Link>
         </nav>
 
         <div className="header-actions">
+          <Link to="/contact" className="header-cta mobile-only">צרי קשר ✨</Link>
           <button className="theme-toggle" onClick={toggle} aria-label="החלפת מצב תצוגה">
             {theme === "dark" ? "☀" : "🌙"}
           </button>

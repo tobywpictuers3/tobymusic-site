@@ -207,12 +207,13 @@ export function Orchestras() {
           </Reveal>
           <div style={{ height: 24 }} />
           <div className="grid">
-            {ORCHESTRAS.packages.map((p) => (
+            {[...ORCHESTRAS.packages].reverse().map((p) => (
               <Reveal key={p.id}>
                 <button
-                  className="card"
+                  className={`card${p.id === "pro" ? " popular" : ""}`}
                   onClick={() => setPkg(p.id)}
                   style={{
+                    position: "relative",
                     width: "100%",
                     textAlign: "start",
                     cursor: "pointer",
@@ -221,6 +222,7 @@ export function Orchestras() {
                     outline: pkg === p.id ? "2px solid var(--accent)" : "none",
                   }}
                 >
+                  {p.id === "pro" && <span className="badge-popular">⭐ המבוקשת ביותר</span>}
                   <h3>{p.name}</h3>
                   <div className="price-tag">₪{p.basePrice.toLocaleString()}</div>
                   <ul style={{ paddingInlineStart: 18, margin: "10px 0 0", color: "var(--text-soft)" }}>
@@ -268,8 +270,11 @@ export function Orchestras() {
               </div>
               <div style={{ height: 16 }} />
               <Link className="btn-primary" to="/contact">
-                <Spark size={20} /> להמשיך להזמנה
+                <Spark size={20} /> לקבל הצעת מחיר מסודרת — ללא התחייבות
               </Link>
+              <p className="reassure" style={{ marginBottom: 0 }}>
+                המחיר שרואים הוא המחיר — בלי הפתעות ובלי אותיות קטנות.
+              </p>
             </div>
           </Reveal>
 
@@ -380,6 +385,9 @@ export function Contact() {
         <div className="container" style={{ maxWidth: 720 }}>
           <Reveal>
             <p className="lead">{CONTACT_PAGE.hero.lead}</p>
+            <p className="reassure" style={{ marginTop: -6 }}>
+              ⏱️ דקה אחת · בלי התחייבות · אני חוזרת אישית לכל פנייה
+            </p>
             <div style={{ height: 10 }} />
 
             <h3>בחירת נושא</h3>

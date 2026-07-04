@@ -25,6 +25,9 @@ export function Students() {
             <Link className="btn-primary" to="/contact">
               <Spark size={20} /> {STUDENTS.topCta}
             </Link>
+            <p className="reassure">
+              הקבלה למסלול נעשית לפי בדיקת התאמה אישית · פנייה קצרה, בלי התחייבות
+            </p>
           </Reveal>
         </div>
       </section>
