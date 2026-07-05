@@ -1,4 +1,5 @@
 {
+  "account_id": "2336ee76b9502fa388d96f34d3611e6b",
   "name": "tobymusic-site",
   "main": "worker/index.ts",
   "compatibility_date": "2026-06-01",
@@ -14,7 +15,7 @@
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "toby-mailing-list",
+      "database_name": "toby-mailing-list-db",
       "database_id": "1d799b4d-7d9c-4b46-b464-6a5aa0a1424d"
     }
   ]
