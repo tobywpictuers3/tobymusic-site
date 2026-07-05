@@ -893,3 +893,20 @@ body { padding-top: 66px; }
   width: 100%; cursor: pointer; text-align: start; font: inherit; color: var(--text);
 }
 .archive-item:hover { border-color: var(--accent); }
+
+/* בועות שיחה */
+.msg-bubble {
+  background: var(--bg-card);
+  border: 1px solid var(--card-border);
+  border-radius: 14px 14px 14px 4px;
+  padding: 10px 14px;
+  max-width: 85%;
+  justify-self: start;
+}
+.msg-bubble.mine {
+  background: rgba(201, 169, 97, 0.14);
+  border-color: var(--accent);
+  border-radius: 14px 14px 4px 14px;
+  justify-self: end;
+}
+.field textarea, textarea { font: inherit; color: var(--text); background: var(--bg-card); border: 1px solid var(--card-border); border-radius: 8px; padding: 10px 12px; }

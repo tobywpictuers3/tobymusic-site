@@ -8,10 +8,13 @@ export interface Env {
   BREVO_API_KEY: string;
   BREVO_API_KEY_2: string;
   AIRTABLE_TOKEN: string;
+  ADMIN_CODE: string;
 }
 
 const SITE = "https://tobymusic.club";
 const COOKIE = "toby_session";
+const ADMIN_COOKIE = "toby_admin";
+const ADMIN_DAYS = 180;
 const LINK_TTL_MIN = 30;
 const SESSION_DAYS = 90;
 
@@ -81,6 +84,45 @@ async function currentMember(req: Request, env: Env) {
   )
     .bind(h)
     .first<{ session_id: string; id: string; email: string; name: string | null }>();
+}
+
+async function currentAdmin(req: Request, env: Env): Promise<boolean> {
+  const tok = getCookie(req, ADMIN_COOKIE);
+  if (!tok) return false;
+  const h = await sha256(tok);
+  const row = await env.DB.prepare(
+    `SELECT id FROM admin_sessions WHERE session_hash = ? AND expires_at > datetime('now')`
+  ).bind(h).first();
+  return !!row;
+}
+
+async function ensureCommTables(env: Env) {
+  await env.DB.prepare(
+    `CREATE TABLE IF NOT EXISTS admin_sessions (
+      id TEXT PRIMARY KEY, session_hash TEXT UNIQUE, expires_at TEXT, created_at TEXT
+    )`
+  ).run();
+  await env.DB.prepare(
+    `CREATE TABLE IF NOT EXISTS member_messages (
+      id TEXT PRIMARY KEY, subscriber_id TEXT, direction TEXT,
+      body TEXT, created_at TEXT, read_at TEXT
+    )`
+  ).run();
+  await env.DB.prepare(
+    `CREATE TABLE IF NOT EXISTS newsletter_drafts (
+      id TEXT PRIMARY KEY, subject TEXT, body_html TEXT, status TEXT DEFAULT 'draft',
+      brevo_ids TEXT, created_at TEXT, updated_at TEXT
+    )`
+  ).run();
+}
+
+function wrapNewsletterHtml(subject: string, body: string): string {
+  const html = /<[a-z][\s\S]*>/i.test(body) ? body : body.replace(/\n/g, "<br/>");
+  return `<!doctype html><html dir="rtl" lang="he"><body style="margin:0;background:#F5F1EA;font-family:Heebo,Arial,sans-serif;">
+  <div style="max-width:600px;margin:0 auto;padding:24px 16px;">
+    <div style="background:#FFFFFF;border-radius:12px;padding:28px;color:#262229;font-size:16px;line-height:1.8;">${html}</div>
+    <p style="text-align:center;color:#6B1F2A;font-size:13px;margin-top:16px;">"אומנות ואמינות, זו יצירה" · TOBY music · טובי וינברג</p>
+  </div></body></html>`;
 }
 
 async function handleApi(req: Request, env: Env, url: URL): Promise<Response> {
@@ -210,6 +252,288 @@ async function handleApi(req: Request, env: Env, url: URL): Promise<Response> {
     } catch {}
 
     return json({ ok: true });
+  }
+
+  /* ══════════ ניהול — כניסת מנהלת בקוד קבוע ══════════ */
+  if (url.pathname === "/api/admin/login" && req.method === "POST") {
+    let code = "";
+    try { code = String(((await req.json()) as { code?: string }).code || ""); } catch {}
+    if (!env.ADMIN_CODE || code !== env.ADMIN_CODE) return json({ error: "bad_code" }, 401);
+    await ensureCommTables(env);
+    const tok = randToken();
+    await env.DB.prepare(
+      `INSERT INTO admin_sessions (id, session_hash, expires_at, created_at)
+       VALUES (?, ?, datetime('now', '+${ADMIN_DAYS} days'), datetime('now'))`
+    ).bind(crypto.randomUUID(), await sha256(tok)).run();
+    return json({ ok: true }, 200, {
+      "Set-Cookie": `${ADMIN_COOKIE}=${tok}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${ADMIN_DAYS * 86400}`,
+    });
+  }
+  if (url.pathname === "/api/admin/me") {
+    return json({ admin: await currentAdmin(req, env) });
+  }
+  if (url.pathname === "/api/admin/logout" && req.method === "POST") {
+    return json({ ok: true }, 200, {
+      "Set-Cookie": `${ADMIN_COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`,
+    });
+  }
+
+  /* ══════════ ניהול — כל השאר דורש מנהלת מחוברת ══════════ */
+  if (url.pathname.startsWith("/api/admin/") && url.pathname !== "/api/admin/decide") {
+    if (!(await currentAdmin(req, env))) return json({ error: "unauthorized" }, 401);
+    await ensureCommTables(env);
+
+    /* --- פניות מהאתר --- */
+    if (url.pathname === "/api/admin/inbox") {
+      const rows = await env.DB.prepare(
+        `SELECT id, name, contact_info, message, status, created_at, responded_at
+         FROM contact_messages ORDER BY created_at DESC LIMIT 100`
+      ).all();
+      return json({ items: rows.results });
+    }
+    if (url.pathname === "/api/admin/reply" && req.method === "POST") {
+      const b = (await req.json().catch(() => ({}))) as { id?: string; toEmail?: string; body?: string };
+      const toEmail = String(b.toEmail || "").trim();
+      const bodyTxt = String(b.body || "").trim();
+      if (!toEmail.includes("@") || !bodyTxt) return json({ error: "missing_fields" }, 400);
+      const r = await fetch("https://api.brevo.com/v3/smtp/email", {
+        method: "POST",
+        headers: { "api-key": env.BREVO_API_KEY, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sender: { name: "טובי וינברג · TOBY music", email: "toby@tobybymusic.com" },
+          replyTo: { email: "toby.musicartist@gmail.com" },
+          to: [{ email: toEmail }],
+          subject: "תשובה לפנייתך · TOBY music 🎶",
+          htmlContent: wrapNewsletterHtml("", bodyTxt),
+        }),
+      });
+      if (!r.ok) return json({ error: "send_failed" }, 502);
+      if (b.id) {
+        await env.DB.prepare(
+          `UPDATE contact_messages SET status='responded', responded_at=datetime('now') WHERE id=?`
+        ).bind(b.id).run();
+      }
+      return json({ ok: true });
+    }
+
+    /* --- ממתינות לאישור (עם השמעת ההקלטה) --- */
+    if (url.pathname === "/api/admin/pending") {
+      const rows = await env.DB.prepare(
+        `SELECT v.id, v.email, v.name, v.created_at, s.status
+         FROM join_verifications v LEFT JOIN subscribers s ON lower(s.email)=v.email
+         WHERE v.decided IS NULL ORDER BY v.created_at DESC LIMIT 50`
+      ).all();
+      return json({ items: rows.results });
+    }
+    if (url.pathname === "/api/admin/audio") {
+      const id = url.searchParams.get("id") || "";
+      const row = await env.DB.prepare(
+        `SELECT audio_b64, audio_type FROM join_verifications WHERE id=?`
+      ).bind(id).first<{ audio_b64: string; audio_type: string }>();
+      if (!row) return json({ error: "not_found" }, 404);
+      const bin = Uint8Array.from(atob(row.audio_b64), (c) => c.charCodeAt(0));
+      return new Response(bin, { headers: { "Content-Type": row.audio_type || "audio/webm" } });
+    }
+    if (url.pathname === "/api/admin/panel-decide" && req.method === "POST") {
+      const b = (await req.json().catch(() => ({}))) as { id?: string; action?: string };
+      const ver = await env.DB.prepare(
+        `SELECT id, email, name, decided FROM join_verifications WHERE id=?`
+      ).bind(String(b.id || "")).first<{ id: string; email: string; name: string | null; decided: string | null }>();
+      if (!ver || ver.decided) return json({ error: "not_found_or_decided" }, 400);
+      const approve = b.action === "approve";
+      await env.DB.batch([
+        env.DB.prepare(
+          approve
+            ? `UPDATE subscribers SET status='approved', approved_at=datetime('now') WHERE lower(email)=? AND status='pending'`
+            : `UPDATE subscribers SET status='blocked', blocked_at=datetime('now') WHERE lower(email)=? AND status='pending'`
+        ).bind(ver.email),
+        env.DB.prepare(
+          `UPDATE join_verifications SET decided=?, decided_at=datetime('now') WHERE id=?`
+        ).bind(approve ? "approve" : "reject", ver.id),
+        env.DB.prepare(
+          `INSERT INTO audit_log (id, action, actor, target_id, meta_json, created_at)
+           VALUES (?, ?, 'admin-panel', ?, '{}', datetime('now'))`
+        ).bind(crypto.randomUUID(), approve ? "site_signup_approved" : "site_signup_rejected", ver.email),
+      ]);
+      if (approve) {
+        try {
+          await fetch("https://api.brevo.com/v3/contacts", {
+            method: "POST",
+            headers: { "api-key": env.BREVO_API_KEY_2, "Content-Type": "application/json" },
+            body: JSON.stringify({ email: ver.email, updateEnabled: true, listIds: [3], attributes: { FIRSTNAME: ver.name || "" } }),
+          });
+          await fetch("https://api.brevo.com/v3/smtp/email", {
+            method: "POST",
+            headers: { "api-key": env.BREVO_API_KEY_2, "Content-Type": "application/json" },
+            body: JSON.stringify({ templateId: 1, to: [{ email: ver.email }], params: { FIRSTNAME: ver.name || "" } }),
+          });
+        } catch {}
+      }
+      return json({ ok: true });
+    }
+
+    /* --- הודעות מנויות: שרשורים --- */
+    if (url.pathname === "/api/admin/threads") {
+      const rows = await env.DB.prepare(
+        `SELECT m.subscriber_id AS sid, s.name, s.email,
+                MAX(m.created_at) AS last_at,
+                SUM(CASE WHEN m.direction='in' AND m.read_at IS NULL THEN 1 ELSE 0 END) AS unread
+         FROM member_messages m JOIN subscribers s ON s.id = m.subscriber_id
+         WHERE m.subscriber_id IS NOT NULL
+         GROUP BY m.subscriber_id ORDER BY last_at DESC LIMIT 100`
+      ).all();
+      return json({ items: rows.results });
+    }
+    if (url.pathname === "/api/admin/thread") {
+      const sid = url.searchParams.get("sid") || "";
+      const rows = await env.DB.prepare(
+        `SELECT id, direction, body, created_at FROM member_messages
+         WHERE subscriber_id=? ORDER BY created_at ASC LIMIT 200`
+      ).bind(sid).all();
+      await env.DB.prepare(
+        `UPDATE member_messages SET read_at=datetime('now') WHERE subscriber_id=? AND direction='in' AND read_at IS NULL`
+      ).bind(sid).run();
+      return json({ items: rows.results });
+    }
+    if (url.pathname === "/api/admin/message" && req.method === "POST") {
+      const b = (await req.json().catch(() => ({}))) as { sid?: string; body?: string; broadcast?: boolean };
+      const bodyTxt = String(b.body || "").trim().slice(0, 4000);
+      if (!bodyTxt) return json({ error: "empty" }, 400);
+      const sid = b.broadcast ? null : String(b.sid || "");
+      if (!b.broadcast && !sid) return json({ error: "missing_sid" }, 400);
+      await env.DB.prepare(
+        `INSERT INTO member_messages (id, subscriber_id, direction, body, created_at)
+         VALUES (?, ?, 'out', ?, datetime('now'))`
+      ).bind(crypto.randomUUID(), sid, bodyTxt).run();
+      // התראה עדינה למנויה (לא בשידור כללי)
+      if (sid) {
+        try {
+          const sub = await env.DB.prepare(`SELECT email, name FROM subscribers WHERE id=?`)
+            .bind(sid).first<{ email: string; name: string | null }>();
+          if (sub) {
+            await fetch("https://api.brevo.com/v3/smtp/email", {
+              method: "POST",
+              headers: { "api-key": env.BREVO_API_KEY, "Content-Type": "application/json" },
+              body: JSON.stringify({
+                sender: { name: "טובי וינברג · TOBY music", email: "toby@tobybymusic.com" },
+                to: [{ email: sub.email }],
+                subject: "יש לך הודעה חדשה מטובי 💬",
+                htmlContent: wrapNewsletterHtml("", `שלום ${sub.name || ""},<br/>מחכה לך הודעה חדשה באזור המנויות באתר:<br/><a href="${SITE}/members">${SITE}/members</a>`),
+              }),
+            });
+          }
+        } catch {}
+      }
+      return json({ ok: true });
+    }
+
+    /* --- טיוטות לתפוצה --- */
+    if (url.pathname === "/api/admin/drafts") {
+      const rows = await env.DB.prepare(
+        `SELECT id, subject, body_html, status, brevo_ids, created_at, updated_at
+         FROM newsletter_drafts ORDER BY updated_at DESC LIMIT 50`
+      ).all();
+      return json({ items: rows.results });
+    }
+    if (url.pathname === "/api/admin/draft" && req.method === "POST") {
+      const b = (await req.json().catch(() => ({}))) as { id?: string; subject?: string; body?: string };
+      const subject = String(b.subject || "").trim().slice(0, 200);
+      const body = String(b.body || "").slice(0, 100_000);
+      if (!subject) return json({ error: "missing_subject" }, 400);
+      if (b.id) {
+        await env.DB.prepare(
+          `UPDATE newsletter_drafts SET subject=?, body_html=?, updated_at=datetime('now') WHERE id=?`
+        ).bind(subject, body, b.id).run();
+        return json({ ok: true, id: b.id });
+      }
+      const id = crypto.randomUUID();
+      await env.DB.prepare(
+        `INSERT INTO newsletter_drafts (id, subject, body_html, created_at, updated_at)
+         VALUES (?, ?, ?, datetime('now'), datetime('now'))`
+      ).bind(id, subject, body).run();
+      return json({ ok: true, id });
+    }
+    if (url.pathname === "/api/admin/draft-test" && req.method === "POST") {
+      const b = (await req.json().catch(() => ({}))) as { id?: string };
+      const d = await env.DB.prepare(`SELECT subject, body_html FROM newsletter_drafts WHERE id=?`)
+        .bind(String(b.id || "")).first<{ subject: string; body_html: string }>();
+      if (!d) return json({ error: "not_found" }, 404);
+      const r = await fetch("https://api.brevo.com/v3/smtp/email", {
+        method: "POST",
+        headers: { "api-key": env.BREVO_API_KEY, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sender: { name: "טובי וינברג · TOBY music", email: "toby@tobybymusic.com" },
+          to: [{ email: "tobyw.tobymusic@gmail.com" }],
+          subject: `[טסט] ${d.subject}`,
+          htmlContent: wrapNewsletterHtml(d.subject, d.body_html),
+        }),
+      });
+      return r.ok ? json({ ok: true }) : json({ error: "send_failed" }, 502);
+    }
+    if (url.pathname === "/api/admin/draft-to-brevo" && req.method === "POST") {
+      const b = (await req.json().catch(() => ({}))) as { id?: string };
+      const d = await env.DB.prepare(`SELECT subject, body_html FROM newsletter_drafts WHERE id=?`)
+        .bind(String(b.id || "")).first<{ subject: string; body_html: string }>();
+      if (!d) return json({ error: "not_found" }, 404);
+      const html = wrapNewsletterHtml(d.subject, d.body_html);
+      const mk = async (key: string, listId: number, tag: string) => {
+        const r = await fetch("https://api.brevo.com/v3/emailCampaigns", {
+          method: "POST",
+          headers: { "api-key": key, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: `${d.subject} (מהאתר)`,
+            subject: d.subject,
+            sender: { name: "טובי וינברג · TOBY music", email: "toby@tobybymusic.com" },
+            htmlContent: html,
+            recipients: { listIds: [listId] },
+          }),
+        });
+        const data = (await r.json().catch(() => ({}))) as { id?: number };
+        return r.ok ? `${tag}:${data.id}` : `${tag}:error`;
+      };
+      const ids = [await mk(env.BREVO_API_KEY, 4, "acc1"), await mk(env.BREVO_API_KEY_2, 3, "acc2")];
+      await env.DB.prepare(
+        `UPDATE newsletter_drafts SET status='in_brevo', brevo_ids=?, updated_at=datetime('now') WHERE id=?`
+      ).bind(ids.join(","), b.id).run();
+      return json({ ok: true, brevo: ids });
+    }
+
+    return json({ error: "not_found" }, 404);
+  }
+
+  /* ══════════ הודעות — צד המנויה ("בינינו") ══════════ */
+  if (url.pathname === "/api/members/messages") {
+    const m = await currentMember(req, env);
+    if (!m) return json({ error: "unauthorized" }, 401);
+    await ensureCommTables(env);
+    if (req.method === "POST") {
+      const b = (await req.json().catch(() => ({}))) as { body?: string };
+      const bodyTxt = String(b.body || "").trim().slice(0, 4000);
+      if (!bodyTxt) return json({ error: "empty" }, 400);
+      await env.DB.prepare(
+        `INSERT INTO member_messages (id, subscriber_id, direction, body, created_at)
+         VALUES (?, ?, 'in', ?, datetime('now'))`
+      ).bind(crypto.randomUUID(), m.id, bodyTxt).run();
+      try {
+        await fetch("https://api.brevo.com/v3/smtp/email", {
+          method: "POST",
+          headers: { "api-key": env.BREVO_API_KEY, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sender: { name: "האתר tobymusic.club", email: "toby@tobybymusic.com" },
+            to: [{ email: "tobyw.tobymusic@gmail.com" }],
+            subject: `💬 הודעה חדשה מ-${m.name || m.email} באזור המנויות`,
+            htmlContent: wrapNewsletterHtml("", `<b>${m.name || m.email}</b> כתבה:<br/><br/>${bodyTxt.replace(/\n/g, "<br/>")}<br/><br/><a href="${SITE}/admin">למענה מתוך האתר</a>`),
+          }),
+        });
+      } catch {}
+      return json({ ok: true });
+    }
+    const rows = await env.DB.prepare(
+      `SELECT id, direction, body, created_at, subscriber_id FROM member_messages
+       WHERE subscriber_id = ? OR (subscriber_id IS NULL AND direction='out')
+       ORDER BY created_at ASC LIMIT 200`
+    ).bind(m.id).all();
+    return json({ items: rows.results });
   }
 
   /* --- החלטת אישור/דחייה — מקישור במייל של טובי --- */

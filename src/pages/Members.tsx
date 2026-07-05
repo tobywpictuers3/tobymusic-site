@@ -19,6 +19,9 @@ export default function Members() {
   const [archive, setArchive] = useState<{ id: string; subject: string; sentDate: string }[] | null>(null);
   const [openItem, setOpenItem] = useState<{ subject: string; html: string } | null>(null);
   const [loadingItem, setLoadingItem] = useState(false);
+  const [chatMsgs, setChatMsgs] = useState<{ id: string; direction: string; body: string; created_at: string }[] | null>(null);
+  const [chatText, setChatText] = useState("");
+  const [chatState, setChatState] = useState("");
 
   useEffect(() => {
     const login = new URLSearchParams(window.location.search).get("login");
@@ -41,6 +44,30 @@ export default function Members() {
       .then((d) => setArchive(d?.items || []))
       .catch(() => setArchive([]));
   }, [auth]);
+
+  const loadChat = () => {
+    fetch("/api/members/messages")
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((d) => setChatMsgs(d.items || []))
+      .catch(() => setChatMsgs([]));
+  };
+
+  useEffect(() => {
+    if (auth === "member" && tab === "messages") loadChat();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auth, tab]);
+
+  const sendChat = async () => {
+    if (!chatText.trim()) return;
+    setChatState("שולחת…");
+    const r = await fetch("/api/members/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ body: chatText.trim() }),
+    }).catch(() => null);
+    if (r?.ok) { setChatText(""); setChatState(""); loadChat(); }
+    else setChatState("השליחה נכשלה — נסי שוב.");
+  };
 
   const openArchiveItem = async (id: string) => {
     setLoadingItem(true);
@@ -109,7 +136,31 @@ export default function Members() {
                   </button>
                 ))}
               </div>
-              {tab === "articles" ? (
+              {tab === "messages" ? (
+                <div className="card">
+                  <h3 className="center">בינינו 💬</h3>
+                  <p className="center" style={{ color: "var(--text-soft)", fontSize: "0.92rem" }}>
+                    מקום לשיחה ישירה עם טובי — היא רואה ועונה כאן.
+                  </p>
+                  {chatMsgs === null && <div className="notice center">טוענת…</div>}
+                  {chatMsgs?.length === 0 && (
+                    <p className="center" style={{ color: "var(--text-faint)" }}>עוד אין הודעות — את מוזמנת לפתוח 🙂</p>
+                  )}
+                  <div style={{ display: "grid", gap: 8, maxHeight: 340, overflowY: "auto" }}>
+                    {chatMsgs?.map((m) => (
+                      <div key={m.id} className={`msg-bubble ${m.direction === "in" ? "mine" : ""}`}>
+                        <div style={{ whiteSpace: "pre-wrap" }}>{m.body}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ height: 10 }} />
+                  <textarea rows={2} value={chatText} onChange={(e) => setChatText(e.target.value)}
+                    placeholder="כתבי לטובי…" style={{ width: "100%" }} />
+                  <div style={{ height: 8 }} />
+                  <button className="btn-primary" onClick={sendChat} disabled={!chatText.trim()}>שליחה</button>
+                  {chatState && <p style={{ marginTop: 8, marginBottom: 0 }}>{chatState}</p>}
+                </div>
+              ) : tab === "articles" ? (
                 <div>
                   {openItem ? (
                     <div className="card">
