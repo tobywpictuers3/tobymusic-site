@@ -212,6 +212,88 @@ async function handleApi(req: Request, env: Env, url: URL): Promise<Response> {
     return json({ ok: true });
   }
 
+  /* --- החלטת אישור/דחייה — מקישור במייל של טובי --- */
+  if (url.pathname === "/api/admin/decide") {
+    const v = url.searchParams.get("v") || "";
+    const t = url.searchParams.get("t") || "";
+    const a = url.searchParams.get("a") || "";
+    const page = (title: string, body: string, color = "#FFE5A0") =>
+      new Response(
+        `<!doctype html><html dir="rtl" lang="he"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title></head>
+        <body style="margin:0;background:#0F0F12;font-family:Heebo,Arial,sans-serif;display:grid;place-items:center;min-height:100vh;">
+        <div style="text-align:center;padding:40px 24px;max-width:480px;">
+          <h1 style="color:${color};font-family:'Frank Ruhl Libre',serif;">${title}</h1>
+          <p style="color:#F5F1EA;font-size:18px;line-height:1.7;">${body}</p>
+          <p style="color:#6B1F2A;margin-top:26px;">"אומנות ואמינות, זו יצירה" · TOBY music</p>
+        </div></body></html>`,
+        { headers: { "Content-Type": "text/html; charset=utf-8" } }
+      );
+
+    if (!v || !t || !["approve", "reject"].includes(a))
+      return page("קישור לא תקין", "חסרים פרטים בקישור. נסי ללחוץ שוב מהמייל.", "#E06666");
+
+    const ver = await env.DB.prepare(
+      `SELECT id, email, name, decided FROM join_verifications WHERE id = ? AND decide_token = ?`
+    ).bind(v, t).first<{ id: string; email: string; name: string | null; decided: string | null }>();
+
+    if (!ver) return page("קישור לא תקין", "הקישור אינו מוכר. ודאי שנפתח מהמייל המקורי.", "#E06666");
+    if (ver.decided)
+      return page("כבר הוחלט", `הבקשה של ${ver.email} כבר ${ver.decided === "approve" ? "אושרה ✅" : "נדחתה ✖"} בעבר.`);
+
+    if (a === "approve") {
+      await env.DB.batch([
+        env.DB.prepare(
+          `UPDATE subscribers SET status='approved', approved_at=datetime('now') WHERE lower(email)=? AND status='pending'`
+        ).bind(ver.email),
+        env.DB.prepare(
+          `UPDATE join_verifications SET decided='approve', decided_at=datetime('now') WHERE id=?`
+        ).bind(ver.id),
+        env.DB.prepare(
+          `INSERT INTO audit_log (id, action, actor, target_id, meta_json, created_at)
+           VALUES (?, 'site_signup_approved', 'toby-email-link', ?, ?, datetime('now'))`
+        ).bind(crypto.randomUUID(), ver.email, JSON.stringify({ via: "tobymusic.club" })),
+      ]);
+      // סנכרון לחשבון Brevo 2 (רשימת "תפוצה מאושרת") + מייל ברוכה הבאה — כשל לא עוצר את האישור
+      try {
+        await fetch("https://api.brevo.com/v3/contacts", {
+          method: "POST",
+          headers: { "api-key": env.BREVO_API_KEY_2, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: ver.email,
+            updateEnabled: true,
+            listIds: [3],
+            attributes: { FIRSTNAME: ver.name || "" },
+          }),
+        });
+        await fetch("https://api.brevo.com/v3/smtp/email", {
+          method: "POST",
+          headers: { "api-key": env.BREVO_API_KEY_2, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            templateId: 1,
+            to: [{ email: ver.email }],
+            params: { FIRSTNAME: ver.name || "" },
+          }),
+        });
+      } catch {}
+      return page("אושרה ✅", `${ver.name || ver.email} נכנסה לתפוצה. מייל ברוכה הבאה נשלח אליה עכשיו.`);
+    }
+
+    // דחייה
+    await env.DB.batch([
+      env.DB.prepare(
+        `UPDATE subscribers SET status='blocked', blocked_at=datetime('now') WHERE lower(email)=? AND status='pending'`
+      ).bind(ver.email),
+      env.DB.prepare(
+        `UPDATE join_verifications SET decided='reject', decided_at=datetime('now') WHERE id=?`
+      ).bind(ver.id),
+      env.DB.prepare(
+        `INSERT INTO audit_log (id, action, actor, target_id, meta_json, created_at)
+         VALUES (?, 'site_signup_rejected', 'toby-email-link', ?, ?, datetime('now'))`
+      ).bind(crypto.randomUUID(), ver.email, JSON.stringify({ via: "tobymusic.club" })),
+    ]);
+    return page("נדחתה ✖", `הבקשה של ${ver.email} נדחתה. היא לא תקבל תכנים ולא תוכל להיכנס לאזור המנויות.`);
+  }
+
   /* --- ארכיון התפוצה — למנויות מחוברות בלבד --- */
   if (url.pathname === "/api/members/content") {
     const m = await currentMember(req, env);
@@ -274,19 +356,27 @@ async function handleApi(req: Request, env: Env, url: URL): Promise<Response> {
     if (audio.length > 600_000) return json({ ok: false, error: "audio_too_large" }, 400);
     const audioType = String(body.audioType || "audio/webm").slice(0, 60);
 
-    // שמירת ראיית האימות ב-D1 (טבלה ייעודית)
+    // שמירת ראיית האימות ב-D1 (טבלה ייעודית) + טוקן החלטה
     await env.DB.prepare(
       `CREATE TABLE IF NOT EXISTS join_verifications (
         id TEXT PRIMARY KEY, email TEXT, name TEXT,
         declared_woman INTEGER, declared_noshare INTEGER,
-        audio_type TEXT, audio_b64 TEXT, created_at TEXT
+        audio_type TEXT, audio_b64 TEXT, created_at TEXT,
+        decide_token TEXT, decided TEXT, decided_at TEXT
       )`
     ).run();
+    try {
+      await env.DB.prepare(`ALTER TABLE join_verifications ADD COLUMN decide_token TEXT`).run();
+      await env.DB.prepare(`ALTER TABLE join_verifications ADD COLUMN decided TEXT`).run();
+      await env.DB.prepare(`ALTER TABLE join_verifications ADD COLUMN decided_at TEXT`).run();
+    } catch {}
+    const verId = crypto.randomUUID();
+    const decideToken = randToken();
     await env.DB.prepare(
-      `INSERT INTO join_verifications (id, email, name, declared_woman, declared_noshare, audio_type, audio_b64, created_at)
-       VALUES (?, ?, ?, 1, 1, ?, ?, datetime('now'))`
+      `INSERT INTO join_verifications (id, email, name, declared_woman, declared_noshare, audio_type, audio_b64, created_at, decide_token)
+       VALUES (?, ?, ?, 1, 1, ?, ?, datetime('now'), ?)`
     )
-      .bind(crypto.randomUUID(), email, name, audioType, audio)
+      .bind(verId, email, name, audioType, audio, decideToken)
       .run();
 
     // ההרשמה עצמה — דרך הוורקר הקיים (לוגיקה אחת)
@@ -306,12 +396,20 @@ async function handleApi(req: Request, env: Env, url: URL): Promise<Response> {
         body: JSON.stringify({
           sender: { name: "האתר tobymusic.club", email: "toby@tobybymusic.com" },
           to: [{ email: "tobyw.tobymusic@gmail.com" }],
-          subject: `🎙️ נרשמת חדשה עם אימות קולי: ${name || email}`,
-          htmlContent: `<div dir="rtl" style="font-family:Heebo,Arial,sans-serif;">
-            <h3>נרשמת חדשה מהאתר — עם הצהרה והקלטה</h3>
-            <p><b>שם:</b> ${name || "—"}<br/><b>מייל:</b> ${email}</p>
-            <p>✔ הצהירה שהיא אישה &nbsp; ✔ התחייבה שהתכנים לא יועברו הלאה</p>
-            <p>ההקלטה הקולית מצורפת למייל זה. עותק נשמר גם במסד הנתונים.</p>
+          subject: `🎙️ נרשמת חדשה ממתינה לאישורך: ${name || email}`,
+          htmlContent: `<div dir="rtl" style="font-family:Heebo,Arial,sans-serif;max-width:560px;margin:0 auto;">
+            <div style="background:#0F0F12;border-radius:12px;padding:26px;color:#F5F1EA;">
+              <h2 style="color:#FFE5A0;margin:0 0 14px;">נרשמת חדשה ממתינה לאישורך</h2>
+              <p><b style="color:#C9A961;">שם:</b> ${name || "—"}<br/><b style="color:#C9A961;">מייל:</b> ${email}</p>
+              <p>✔ הצהירה שהיא אישה &nbsp; ✔ התחייבה שהתכנים לא יועברו הלאה<br/>🎙️ ההקלטה מצורפת למייל — האזיני לפני ההחלטה.</p>
+              <div style="text-align:center;margin:22px 0 6px;">
+                <a href="${SITE}/api/admin/decide?v=${verId}&t=${decideToken}&a=approve"
+                   style="display:inline-block;margin:0 6px;padding:13px 30px;border-radius:8px;font-weight:700;color:#0F0F12;text-decoration:none;background:linear-gradient(110deg,#8B2A37,#C9A961,#FFE5A0,#C9A961,#6B1F2A);">✅ לאשר כניסה לתפוצה</a>
+                <a href="${SITE}/api/admin/decide?v=${verId}&t=${decideToken}&a=reject"
+                   style="display:inline-block;margin:8px 6px;padding:13px 30px;border-radius:8px;font-weight:700;color:#F5F1EA;text-decoration:none;border:2px solid #6B1F2A;">✖ לדחות</a>
+              </div>
+              <p style="color:#8F8A80;font-size:12px;">עד ההחלטה — הנרשמת בסטטוס ממתינה ואינה מקבלת תכנים.</p>
+            </div>
           </div>`,
           attachment: [{ name: `verification-${Date.now()}.${ext}`, content: audio }],
         }),

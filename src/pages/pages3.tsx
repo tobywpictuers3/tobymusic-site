@@ -569,30 +569,6 @@ export function Blog() {
         </div>
       </section>
 
-      {/* ניוזלטרים */}
-      <section className="section-tight">
-        <div className="container">
-          <Reveal>
-            <div className="center">
-              <div className="badge-eyebrow">רשימת התפוצה</div>
-              <h2>מהניוזלטר</h2>
-            </div>
-          </Reveal>
-          <div style={{ height: 20 }} />
-          <div className="grid">
-            {BLOG.newsletters.map((n) => (
-              <Reveal key={n.title}>
-                <div className="card">
-                  <span className="lock-badge">{n.when}</span>
-                  <h3 style={{ marginTop: 10 }}>{n.title}</h3>
-                  <p>{n.text}</p>
-                </div>
-              </Reveal>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* לרשומות בלבד */}
       <section className="section-tight">
         <div className="container">
@@ -603,18 +579,13 @@ export function Blog() {
             </div>
           </Reveal>
           <div style={{ height: 20 }} />
-          <div className="grid">
-            {BLOG.membersOnly.map((m) => (
-              <Reveal key={m.title}>
-                <div className="card locked-card">
-                  <span className="lock-badge">🔒</span>
-                  <h3 style={{ marginTop: 10 }}>{m.title}</h3>
-                  <p>{m.text}</p>
-                  <div className="lock-overlay">{BLOG.lockNote}</div>
-                </div>
-              </Reveal>
-            ))}
-          </div>
+          <Reveal>
+            <div className="card locked-card center" style={{ maxWidth: 620, margin: "0 auto" }}>
+              <div style={{ fontSize: "2.2rem" }}>🔒</div>
+              <h3>יש כאן עוד — אבל זה נשאר בפנים</h3>
+              <p>חלק מהתכנים שמורים לרשומות התפוצה בלבד. מה בדיוק? מצטרפות — ומגלות.</p>
+            </div>
+          </Reveal>
           <div style={{ height: 22 }} />
           <div className="center cta-row">
             <Link className="btn-primary" to="/members">
