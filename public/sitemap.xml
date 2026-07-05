@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://tobymusic.club/</loc><priority>1.0</priority></url>
+  <url><loc>https://tobymusic.club/about</loc><priority>0.8</priority></url>
+  <url><loc>https://tobymusic.club/performances</loc><priority>0.9</priority></url>
+  <url><loc>https://tobymusic.club/orchestras</loc><priority>0.9</priority></url>
+  <url><loc>https://tobymusic.club/students</loc><priority>0.9</priority></url>
+  <url><loc>https://tobymusic.club/sheets</loc><priority>0.8</priority></url>
+  <url><loc>https://tobymusic.club/blog</loc><priority>0.7</priority></url>
+  <url><loc>https://tobymusic.club/contact</loc><priority>0.8</priority></url>
+  <url><loc>https://tobymusic.club/accessibility</loc><priority>0.3</priority></url>
+  <url><loc>https://tobymusic.club/privacy</loc><priority>0.3</priority></url>
+</urlset>

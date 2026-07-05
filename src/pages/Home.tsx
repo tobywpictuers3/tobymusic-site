@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { CHARACTERS, CONTACT, Reveal, Spark, Ticker } from "../components/shared";
+import { CHARACTERS, CONTACT, JoinForm, Reveal, Spark, Ticker } from "../components/shared";
 import { HOME, HOME_MARKETING as MKT } from "../content/site";
 
 export default function Home() {
@@ -24,7 +24,7 @@ export default function Home() {
             <Link className="btn-primary" to="/contact">
               <Spark size={20} /> {MKT.heroCtaPrimary}
             </Link>
-            <a className="btn-secondary" href={CONTACT.joinUrl} target="_blank" rel="noreferrer">
+            <a className="btn-secondary" href="#newsletter">
               {MKT.heroCtaSecondary}
             </a>
           </div>
@@ -113,7 +113,7 @@ export default function Home() {
       </section>
 
       {/* ═══ תפוצה — בלעדיות ═══ */}
-      <section className="section-tight">
+      <section className="section-tight" id="newsletter">
         <div className="container center">
           <Reveal>
             <div className="kicker" style={{ color: "var(--accent)" }}>
@@ -124,14 +124,11 @@ export default function Home() {
               {MKT.newsletter.text}
             </p>
             <div style={{ height: 16 }} />
-            <div className="cta-row">
-              <a className="btn-primary" href={CONTACT.joinUrl} target="_blank" rel="noreferrer">
-                <Spark size={22} /> {MKT.newsletter.ctaJoin}
-              </a>
-              <Link className="btn-secondary" to="/members">
-                {MKT.newsletter.ctaMembers}
-              </Link>
-            </div>
+            <JoinForm />
+            <div style={{ height: 12 }} />
+            <Link className="btn-secondary" to="/members">
+              {MKT.newsletter.ctaMembers}
+            </Link>
           </Reveal>
         </div>
       </section>

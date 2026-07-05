@@ -211,6 +211,23 @@ async function handleApi(req: Request, env: Env, url: URL): Promise<Response> {
     return json({ ok: true });
   }
 
+  /* --- הרשמה לתפוצה — פרוקסי לוורקר הרשמות הקיים (לוגיקה אחת) --- */
+  if (url.pathname === "/api/join" && req.method === "POST") {
+    let body: { name?: string; email?: string } = {};
+    try { body = (await req.json()) as typeof body; } catch {}
+    const name = String(body.name || "").trim().slice(0, 120);
+    const email = String(body.email || "").trim().toLowerCase().slice(0, 160);
+    if (!email.includes("@")) return json({ ok: false, error: "bad_email" }, 400);
+
+    const r = await fetch("https://toby-mailing-list.w0504124161.workers.dev/subscribe_request", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name, email, source: "tobymusic.club", newsletterOptIn: true }),
+    });
+    const data = (await r.json().catch(() => ({}))) as Record<string, unknown>;
+    return json(data, r.status);
+  }
+
   /* --- יומן הופעות ציבורי מאיירטייבל (רק "פרסום באתר" מסומן) --- */
   if (url.pathname === "/api/events") {
     const cache = caches.default;

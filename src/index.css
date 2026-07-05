@@ -863,3 +863,22 @@ body { padding-top: 66px; }
 .reassure { color: var(--text-faint); font-size: 0.88rem; margin-top: 10px; }
 .header-cta.mobile-only { display: none; }
 @media (max-width: 920px) { .header-cta.mobile-only { display: inline-block; } }
+
+/* טופס הצטרפות מוטמע */
+.join-form {
+  display: grid;
+  grid-template-columns: 1fr 1.3fr auto;
+  gap: 10px;
+  max-width: 640px;
+  margin: 0 auto;
+}
+.join-form input {
+  background: var(--bg-card);
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  color: var(--text);
+  font: inherit;
+}
+.join-form input:focus { outline: 2px solid var(--accent); border-color: var(--accent); }
+@media (max-width: 620px) { .join-form { grid-template-columns: 1fr; } }

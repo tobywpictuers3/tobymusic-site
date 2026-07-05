@@ -24,6 +24,64 @@ export const CHARACTERS: Record<string, string> = {
   eguitar: "/assets/characters/eguitar.webp",
 };
 
+/* ---------- טופס הצטרפות לתפוצה — מוטמע ---------- */
+export function JoinForm() {
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [state, setState] = useState<"idle" | "sending" | "ok" | "err">("idle");
+
+  const submit = async () => {
+    if (!email.includes("@")) { setState("err"); return; }
+    setState("sending");
+    try {
+      const r = await fetch("/api/join", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok || !(d as { ok?: boolean }).ok) throw new Error();
+      setState("ok");
+    } catch {
+      setState("err");
+    }
+  };
+
+  if (state === "ok") {
+    return (
+      <div className="notice ok center">
+        ✅ הצטרפת בהצלחה! מייל אישור נשלח אלייך עכשיו 🎶
+      </div>
+    );
+  }
+  return (
+    <div className="join-form">
+      <input
+        aria-label="שם פרטי"
+        placeholder="שם פרטי"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+      />
+      <input
+        aria-label="כתובת מייל"
+        type="email"
+        dir="ltr"
+        placeholder="you@example.com"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+      />
+      <button className="btn-primary" onClick={submit} disabled={state === "sending"}>
+        <Spark size={18} /> {state === "sending" ? "רושמת אותך..." : "הצטרפות בחינם"}
+      </button>
+      {state === "err" && (
+        <div className="notice" style={{ gridColumn: "1 / -1" }}>
+          משהו השתבש — בדקי את הכתובת ונסי שוב.
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ---------- טיקר נע ---------- */
 export function Ticker({ items }: { items: string[] }) {
   const row = items.map((t, i) => (
@@ -243,9 +301,17 @@ export function Footer() {
               {l.label}
             </Link>
           ))}
-          <a href={CONTACT.joinUrl} target="_blank" rel="noreferrer" style={{ color: "var(--accent)", textDecoration: "none", fontSize: "0.92rem", fontWeight: 700 }}>
+          <a href="/#newsletter" style={{ color: "var(--accent)", textDecoration: "none", fontSize: "0.92rem", fontWeight: 700 }}>
             להצטרף לתפוצה
           </a>
+        </nav>
+        <nav aria-label="מדיניות" style={{ display: "flex", gap: 18, justifyContent: "center", marginBottom: 14 }}>
+          <Link to="/accessibility" style={{ color: "var(--text-faint)", textDecoration: "none", fontSize: "0.84rem" }}>
+            הצהרת נגישות
+          </Link>
+          <Link to="/privacy" style={{ color: "var(--text-faint)", textDecoration: "none", fontSize: "0.84rem" }}>
+            פרטיות ותנאי שימוש
+          </Link>
         </nav>
         <div className="footer-name">{CONTACT.name}</div>
         <div className="footer-roles">{CONTACT.roles}</div>

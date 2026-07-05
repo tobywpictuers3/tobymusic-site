@@ -5,6 +5,7 @@ import Home from "./pages/Home";
 import Members from "./pages/Members";
 import { About, Performances, Orchestras, Contact, NotFound } from "./pages/pages2";
 import { Students, Sheets, Blog } from "./pages/pages3";
+import { Accessibility, Privacy } from "./pages/pages4";
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -28,6 +29,8 @@ export default function App() {
           <Route path="/blog" element={<Blog />} />
           <Route path="/members" element={<Members />} />
           <Route path="/contact" element={<Contact />} />
+          <Route path="/accessibility" element={<Accessibility />} />
+          <Route path="/privacy" element={<Privacy />} />
           {/* הפניות מנתיבי הגרסה הקודמת */}
           <Route path="/teaching" element={<Navigate to="/students" replace />} />
           <Route path="/scores" element={<Navigate to="/sheets" replace />} />

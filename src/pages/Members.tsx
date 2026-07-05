@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { CONTACT, PageHero, Reveal, Spark } from "../components/shared";
+import { JoinForm, PageHero, Reveal, Spark } from "../components/shared";
 
 const SECTIONS = [
   { id: "songs", icon: "🎵", label: "שירים והקלטות" },
@@ -144,13 +144,10 @@ export default function Members() {
                 </>
               )}
               <div style={{ height: 18 }} />
-              <p className="center" style={{ marginBottom: 0, fontSize: "0.95rem", color: "var(--text-faint)" }}>
-                עוד לא רשומה?{" "}
-                <a href={CONTACT.joinUrl} target="_blank" rel="noreferrer">
-                  הצטרפי לתפוצה כאן
-                </a>{" "}
-                — חינם, בחצי דקה.
+              <p className="center" style={{ marginBottom: 10, fontSize: "0.95rem", color: "var(--text-faint)" }}>
+                עוד לא רשומה? הצטרפי כאן — חינם, בחצי דקה:
               </p>
+              <JoinForm />
             </div>
           </Reveal>
         </div>
