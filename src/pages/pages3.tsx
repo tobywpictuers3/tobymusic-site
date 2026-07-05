@@ -485,7 +485,7 @@ export function Blog() {
           <Reveal>
             <div className="center">
               <div className="badge-eyebrow">מאמרים</div>
-              <h2>פיד חי עם סינון</h2>
+              <h2>כל המאמרים</h2>
               <div style={{ margin: "14px 0" }}>
                 {BLOG.categories.map((c) => (
                   <button

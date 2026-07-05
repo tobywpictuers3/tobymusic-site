@@ -2,10 +2,10 @@ import { useEffect, useState } from "react";
 import { CONTACT, PageHero, Reveal, Spark } from "../components/shared";
 
 const SECTIONS = [
-  { id: "songs", icon: "🎵", label: "שירים והקלטות", text: "השירים וההקלטות של טובי — להאזנה בלעדית." },
-  { id: "articles", icon: "📖", label: "תכנים ומאמרים", text: "המאמרים והתובנות המלאים — גרסת המנויות." },
-  { id: "benefits", icon: "🎁", label: "הטבות והגרלות", text: "הטבות, הגרלות והפתעות — רק לרשומות." },
-  { id: "messages", icon: "💬", label: "בינינו", text: "תקשורת ישירה בינך לבין טובי — הודעות ותגובות." },
+  { id: "songs", icon: "🎵", label: "שירים והקלטות" },
+  { id: "articles", icon: "📖", label: "תכנים ומאמרים" },
+  { id: "benefits", icon: "🎁", label: "הטבות והגרלות" },
+  { id: "messages", icon: "💬", label: "בינינו" },
 ];
 
 type AuthState = "loading" | "guest" | "member";
@@ -54,118 +54,104 @@ export default function Members() {
       } else if (r.status === 404) {
         setStatus("הכתובת לא נמצאה ברשימת התפוצה. אפשר להצטרף בקישור למטה.");
       } else {
-        setStatus("הכניסה עוד לא מחוברת — ממש בקרוב. בינתיים אפשר להצטרף לתפוצה למטה.");
+        setStatus("משהו השתבש — נסי שוב בעוד רגע.");
       }
     } catch {
-      setStatus("הכניסה עוד לא מחוברת — ממש בקרוב. בינתיים אפשר להצטרף לתפוצה למטה.");
+      setStatus("משהו השתבש — נסי שוב בעוד רגע.");
     }
   };
 
+  /* ───────── מנויה מחוברת — רק כאן רואים מה יש ───────── */
+  if (auth === "member") {
+    return (
+      <>
+        <PageHero
+          eyebrow="אזור מנויות"
+          title={`ברוכה הבאה${memberName ? `, ${memberName}` : ""}! 🔓`}
+          lead="נעים שאת כאן. זה המקום שלנו."
+        />
+        <section className="section">
+          <div className="container" style={{ maxWidth: 720 }}>
+            <Reveal>
+              <div className="members-tabs" style={{ justifyContent: "center" }}>
+                {SECTIONS.map((s) => (
+                  <button
+                    key={s.id}
+                    className={`members-tab${tab === s.id ? " active" : ""}`}
+                    onClick={() => setTab(s.id)}
+                  >
+                    {s.icon} {s.label}
+                  </button>
+                ))}
+              </div>
+              {SECTIONS.filter((s) => s.id === tab).map((s) => (
+                <div key={s.id} className="card center">
+                  <div className="card-icon" style={{ fontSize: "2rem" }}>{s.icon}</div>
+                  <h3>{s.label}</h3>
+                  <p style={{ color: "var(--text-soft)" }}>
+                    התכנים הראשונים בדרך — ברגע שיעלו, הם יחכו לך כאן.
+                  </p>
+                </div>
+              ))}
+              <div style={{ height: 20 }} />
+              <div className="center">
+                <button className="btn-secondary" onClick={logout}>יציאה</button>
+              </div>
+            </Reveal>
+          </div>
+        </section>
+      </>
+    );
+  }
+
+  /* ───────── אורחת — דלת סגורה. לא מגלים כלום ───────── */
   return (
     <>
       <PageHero
         eyebrow="אזור מנויות"
-        title="ברוכה הבאה פנימה"
-        lead="שירים, הקלטות, תכנים מלאים, הטבות ותקשורת ישירה — לרשומות התפוצה בלבד."
+        title="יש דברים ששומרים לרשומות בלבד"
+        lead="מה מחכה בפנים? זה בדיוק העניין — רק מי שנכנסת, יודעת. ✨"
       />
-
       <section className="section">
-        <div className="container" style={{ maxWidth: 720 }}>
-          {auth === "member" && (
-            <Reveal>
-              <div className="card center">
-                <h3>ברוכה הבאה{memberName ? `, ${memberName}` : ""}! 🔓</h3>
-                <p style={{ color: "var(--text-soft)" }}>
-                  את מחוברת לאזור המנויות. התכנים הראשונים בדרך — ברגע שיעלו, הם יחכו לך כאן.
-                </p>
-                <button className="btn-secondary" onClick={logout}>יציאה</button>
+        <div className="container" style={{ maxWidth: 560 }}>
+          <Reveal>
+            <div className="card">
+              <div className="center" style={{ fontSize: "2.4rem", marginBottom: 6 }}>🔒</div>
+              <h3 className="center">כניסה לרשומות תפוצה</h3>
+              <p style={{ color: "var(--text-soft)", textAlign: "center" }}>
+                הזיני את המייל איתו נרשמת — ונשלח לך קישור כניסה אישי. בלי סיסמאות.
+              </p>
+              <div className="field">
+                <label htmlFor="member-email">כתובת מייל</label>
+                <input
+                  id="member-email"
+                  type="email"
+                  dir="ltr"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@example.com"
+                />
               </div>
-            </Reveal>
-          )}
-
-          {auth !== "member" && (
-            <Reveal>
-              <div className="card">
-                <h3>כניסה לרשומות תפוצה</h3>
-                <p style={{ color: "var(--text-soft)" }}>
-                  הזיני את המייל איתו נרשמת — ונשלח לך קישור כניסה אישי. בלי סיסמאות.
-                </p>
-                <div className="field">
-                  <label htmlFor="member-email">כתובת מייל</label>
-                  <input
-                    id="member-email"
-                    type="email"
-                    dir="ltr"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="you@example.com"
-                  />
-                </div>
+              <div className="center">
                 <button className="btn-primary" onClick={requestLink}>
                   <Spark size={20} /> שלחי לי קישור כניסה
                 </button>
-                {status && (
-                  <>
-                    <div style={{ height: 14 }} />
-                    <div className="notice">{status}</div>
-                  </>
-                )}
-                <div style={{ height: 18 }} />
-                <p style={{ marginBottom: 0, fontSize: "0.95rem", color: "var(--text-faint)" }}>
-                  עוד לא רשומה?{" "}
-                  <a href={CONTACT.joinUrl} target="_blank" rel="noreferrer">
-                    הצטרפי לתפוצה כאן
-                  </a>
-                </p>
               </div>
-            </Reveal>
-          )}
-
-          <div style={{ height: 34 }} />
-
-          <Reveal>
-            <div className="center">
-              <span className="lock-badge">
-                {auth === "member" ? "🔓 מחוברת" : "🔒 מה מחכה בפנים"}
-              </span>
+              {status && (
+                <>
+                  <div style={{ height: 14 }} />
+                  <div className="notice">{status}</div>
+                </>
+              )}
+              <div style={{ height: 18 }} />
+              <p className="center" style={{ marginBottom: 0, fontSize: "0.95rem", color: "var(--text-faint)" }}>
+                עוד לא רשומה?{" "}
+                <a href={CONTACT.joinUrl} target="_blank" rel="noreferrer">
+                  הצטרפי לתפוצה כאן
+                </a>{" "}
+                — חינם, בחצי דקה.
+              </p>
             </div>
-            <div className="members-tabs" style={{ justifyContent: "center" }}>
-              {SECTIONS.map((s) => (
-                <button
-                  key={s.id}
-                  className={`members-tab${tab === s.id ? " active" : ""}`}
-                  onClick={() => setTab(s.id)}
-                >
-                  {s.icon} {s.label}
-                </button>
-              ))}
-            </div>
-            {SECTIONS.filter((s) => s.id === tab).map((s) => (
-              <div key={s.id} className="card center">
-                <div className="card-icon" style={{ fontSize: "2rem" }}>
-                  {s.icon}
-                </div>
-                <h3>{s.label}</h3>
-                <p>{s.text}</p>
-                {auth === "member" && (
-            <Reveal>
-              <div className="card center">
-                <h3>ברוכה הבאה{memberName ? `, ${memberName}` : ""}! 🔓</h3>
-                <p style={{ color: "var(--text-soft)" }}>
-                  את מחוברת לאזור המנויות. התכנים הראשונים בדרך — ברגע שיעלו, הם יחכו לך כאן.
-                </p>
-                <button className="btn-secondary" onClick={logout}>יציאה</button>
-              </div>
-            </Reveal>
-          )}
-
-          {auth !== "member" && (
-                  <p style={{ marginTop: 12, marginBottom: 0, color: "var(--text-faint)", fontSize: "0.92rem" }}>
-                    התוכן ייפתח לאחר כניסה עם קישור אישי.
-                  </p>
-                )}
-              </div>
-            ))}
           </Reveal>
         </div>
       </section>
