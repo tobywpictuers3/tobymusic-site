@@ -24,81 +24,40 @@ export const CHARACTERS: Record<string, string> = {
   eguitar: "/assets/characters/eguitar.webp",
 };
 
-/* ---------- טופס הצטרפות לתפוצה — הצהרה + אימות קולי ---------- */
+/* ---------- טופס הצטרפות לתפוצה — מקור האמת הוא Worker התפוצה הקיים ---------- */
 export function JoinForm() {
-  const [step, setStep] = useState<1 | 2 | 3>(1);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [declareWoman, setDeclareWoman] = useState(false);
-  const [declareNoShare, setDeclareNoShare] = useState(false);
-  const [recState, setRecState] = useState<"idle" | "recording" | "done">("idle");
-  const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [state, setState] = useState<"idle" | "sending" | "ok" | "err">("idle");
   const [errMsg, setErrMsg] = useState("");
-  const recRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
-  const blobRef = useRef<Blob | null>(null);
-  const timerRef = useRef<number | null>(null);
-
-  const stopRecording = () => {
-    if (timerRef.current) window.clearTimeout(timerRef.current);
-    recRef.current?.stop();
-    recRef.current?.stream.getTracks().forEach((t) => t.stop());
-  };
-
-  const startRecording = async () => {
-    setErrMsg("");
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mime = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
-        ? "audio/webm;codecs=opus"
-        : MediaRecorder.isTypeSupported("audio/mp4")
-          ? "audio/mp4"
-          : "";
-      const rec = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
-      recRef.current = rec;
-      chunksRef.current = [];
-      rec.ondataavailable = (e) => e.data.size && chunksRef.current.push(e.data);
-      rec.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: rec.mimeType || "audio/webm" });
-        blobRef.current = blob;
-        setAudioUrl(URL.createObjectURL(blob));
-        setRecState("done");
-      };
-      rec.start();
-      setRecState("recording");
-      timerRef.current = window.setTimeout(stopRecording, 10_000); // עד 10 שניות
-    } catch {
-      setErrMsg("לא הצלחנו לגשת למיקרופון. בדקי שהדפדפן קיבל הרשאה ונסי שוב.");
-    }
-  };
 
   const submit = async () => {
-    const blob = blobRef.current;
-    if (!blob) return;
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanName = name.trim();
+
+    if (!cleanEmail.includes("@")) {
+      setState("err");
+      setErrMsg("נא להזין כתובת מייל תקינה.");
+      return;
+    }
+
     setState("sending");
     setErrMsg("");
+
     try {
-      const b64 = await new Promise<string>((res, rej) => {
-        const fr = new FileReader();
-        fr.onload = () => res(String(fr.result).split(",")[1] || "");
-        fr.onerror = rej;
-        fr.readAsDataURL(blob);
-      });
-      const r = await fetch("/api/join", {
+      const subscribeUrl = CONTACT.joinUrl.replace(/\/join$/, "/subscribe_request");
+      const r = await fetch(subscribeUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name,
-          email,
-          declareWoman,
-          declareNoShare,
-          audio: b64,
-          audioType: blob.type || "audio/webm",
+          name: cleanName,
+          email: cleanEmail,
+          source: "web_join",
+          newsletterOptIn: true,
         }),
       });
-      const d = (await r.json().catch(() => ({}))) as { ok?: boolean };
-      if (!r.ok || !d.ok) throw new Error();
+      const d = (await r.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+      if (!r.ok || !d.ok) throw new Error(d.error || "signup_failed");
       setState("ok");
     } catch {
       setState("err");
@@ -108,87 +67,33 @@ export function JoinForm() {
 
   if (state === "ok") {
     return (
-      <div className="notice ok center">✅ הצטרפת בהצלחה! מייל אישור נשלח אלייך עכשיו 🎶</div>
+      <div className="notice ok center">✅ נרשמת בהצלחה! מייל אישור נשלח אלייך עכשיו 🎶</div>
     );
   }
 
   return (
-    <div className="join-steps">
-      {/* שלב 1 — פרטים */}
-      {step === 1 && (
-        <div className="join-form">
-          <input aria-label="שם פרטי" placeholder="שם פרטי" value={name}
-            onChange={(e) => setName(e.target.value)} />
-          <input aria-label="כתובת מייל" type="email" dir="ltr" placeholder="you@example.com"
-            value={email} onChange={(e) => setEmail(e.target.value)} />
-          <button className="btn-primary" onClick={() => {
-            if (!email.includes("@")) { setErrMsg("נא להזין כתובת מייל תקינה."); return; }
-            setErrMsg(""); setStep(2);
-          }}>
-            <Spark size={18} /> להמשך הרשמה
-          </button>
-          {errMsg && <div className="notice" style={{ gridColumn: "1 / -1" }}>{errMsg}</div>}
-        </div>
-      )}
-
-      {/* שלב 2 — הצהרה */}
-      {step === 2 && (
-        <div className="card" style={{ textAlign: "start", maxWidth: 560, margin: "0 auto" }}>
-          <h3>הצהרה קצרה 🤝</h3>
-          <p style={{ color: "var(--text-soft)" }}>
-            התפוצה והתכנים בה מיועדים לנשים בלבד. כדי לשמור על המרחב הזה:
-          </p>
-          <label className="declare-line">
-            <input type="checkbox" checked={declareWoman}
-              onChange={(e) => setDeclareWoman(e.target.checked)} />
-            <span>אני מצהירה שאני אישה</span>
-          </label>
-          <label className="declare-line">
-            <input type="checkbox" checked={declareNoShare}
-              onChange={(e) => setDeclareNoShare(e.target.checked)} />
-            <span>אני מתחייבת שהתכנים לא יועברו הלאה</span>
-          </label>
-          <div style={{ height: 12 }} />
-          <button className="btn-primary" disabled={!declareWoman || !declareNoShare}
-            style={{ opacity: declareWoman && declareNoShare ? 1 : 0.5 }}
-            onClick={() => setStep(3)}>
-            להמשך — אימות קולי קצר
-          </button>
-        </div>
-      )}
-
-      {/* שלב 3 — הקלטה */}
-      {step === 3 && (
-        <div className="card center" style={{ maxWidth: 560, margin: "0 auto" }}>
-          <h3>🎙️ אימות קולי — שנייה אחת ודי</h3>
-          <p style={{ color: "var(--text-soft)" }}>
-            לחצי על ההקלטה ואמרי בקול: <b>"אני {name || "..."} ואני אישה"</b>
-          </p>
-          {recState === "idle" && (
-            <button className="btn-primary" onClick={startRecording}>🔴 התחלת הקלטה</button>
-          )}
-          {recState === "recording" && (
-            <button className="btn-primary rec-pulse" onClick={stopRecording}>⏹ מקליטה... לחצי לסיום</button>
-          )}
-          {recState === "done" && audioUrl && (
-            <>
-              <audio controls src={audioUrl} style={{ width: "100%", margin: "10px 0" }} />
-              <div className="cta-row" style={{ justifyContent: "center" }}>
-                <button className="btn-secondary" onClick={() => { setRecState("idle"); setAudioUrl(null); blobRef.current = null; }}>
-                  להקליט שוב
-                </button>
-                <button className="btn-primary" onClick={submit} disabled={state === "sending"}>
-                  <Spark size={18} /> {state === "sending" ? "רושמת אותך..." : "סיום הרשמה"}
-                </button>
-              </div>
-            </>
-          )}
-          {errMsg && (<><div style={{ height: 10 }} /><div className="notice">{errMsg}</div></>)}
-          <p style={{ color: "var(--text-faint)", fontSize: "0.82rem", marginBottom: 0, marginTop: 12 }}>
-            ההקלטה משמשת לאימות בלבד ונשמרת באופן מאובטח אצל טובי.
-          </p>
-        </div>
-      )}
+    <div className="join-form">
+      <input
+        aria-label="שם פרטי"
+        placeholder="שם פרטי"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+      />
+      <input
+        aria-label="כתובת מייל"
+        type="email"
+        dir="ltr"
+        placeholder="you@example.com"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+      />
+      <button className="btn-primary" onClick={submit} disabled={state === "sending"}>
+        <Spark size={18} /> {state === "sending" ? "רושמת אותך..." : "להצטרפות לתפוצה"}
+      </button>
+      {errMsg && <div className="notice" style={{ gridColumn: "1 / -1" }}>{errMsg}</div>}
+      <p style={{ gridColumn: "1 / -1", color: "var(--text-faint)", fontSize: "0.84rem", margin: 0 }}>
+        ההרשמה מנוהלת דרך מערכת התפוצה הקיימת של TOBY music.
+      </p>
     </div>
   );
 }
