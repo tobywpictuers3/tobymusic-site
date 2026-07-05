@@ -6,6 +6,7 @@ export interface Env {
   ASSETS: Fetcher;
   DB: D1Database;
   BREVO_API_KEY: string;
+  AIRTABLE_TOKEN: string;
 }
 
 const SITE = "https://tobymusic.club";
@@ -184,7 +185,73 @@ async function handleApi(req: Request, env: Env, url: URL): Promise<Response> {
         JSON.stringify(body)
       )
       .run();
+
+    // התראה לטובי — כשל בשליחה לא מפיל את הטופס
+    try {
+      await fetch("https://api.brevo.com/v3/smtp/email", {
+        method: "POST",
+        headers: { "api-key": env.BREVO_API_KEY, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sender: { name: "האתר tobymusic.club", email: "toby@tobybymusic.com" },
+          to: [{ email: "tobyw.tobymusic@gmail.com" }],
+          subject: `📩 פנייה חדשה מהאתר: ${name}`,
+          htmlContent: `<div dir="rtl" style="font-family:Heebo,Arial,sans-serif;max-width:560px;margin:0 auto;">
+            <div style="background:#0F0F12;border-radius:12px;padding:26px;color:#F5F1EA;">
+              <h2 style="color:#FFE5A0;margin:0 0 14px;">פנייה חדשה מטופס הקשר ✨</h2>
+              <p><b style="color:#C9A961;">שם:</b> ${name}</p>
+              <p><b style="color:#C9A961;">יצירת קשר:</b> ${[email, phone].filter(Boolean).join(" | ")}</p>
+              <p><b style="color:#C9A961;">נושאים:</b> ${topics || "—"}</p>
+              <p><b style="color:#C9A961;">פירוט:</b><br/>${details.replace(/\n/g, "<br/>") || "—"}</p>
+            </div>
+          </div>`,
+        }),
+      });
+    } catch {}
+
     return json({ ok: true });
+  }
+
+  /* --- יומן הופעות ציבורי מאיירטייבל (רק "פרסום באתר" מסומן) --- */
+  if (url.pathname === "/api/events") {
+    const cache = caches.default;
+    const cacheKey = new Request("https://tobymusic.club/api/events");
+    const cached = await cache.match(cacheKey);
+    if (cached) return cached;
+
+    const params = new URLSearchParams({
+      filterByFormula:
+        "AND({פרסום באתר}, IS_AFTER({תאריך}, DATEADD(TODAY(), -1, 'days')))",
+      "sort[0][field]": "תאריך",
+      "sort[0][direction]": "asc",
+      maxRecords: "6",
+    });
+    const r = await fetch(
+      `https://api.airtable.com/v0/apptvmUSGj4vP21jU/tblRuNuG95AW3TNsu?${params}`,
+      { headers: { Authorization: `Bearer ${env.AIRTABLE_TOKEN}` } }
+    );
+    if (!r.ok) return json({ events: [] });
+    const data = (await r.json()) as {
+      records: { fields: Record<string, unknown> }[];
+    };
+    const events = data.records.map((rec) => {
+      const f = rec.fields;
+      const dateStr = String(f["תאריך"] || "");
+      let dateHe = "";
+      if (dateStr) {
+        const d = new Date(dateStr + "T00:00:00");
+        dateHe = d.toLocaleDateString("he-IL", { day: "numeric", month: "long", year: "numeric" });
+      }
+      return {
+        title: String(f["כותרת לאתר"] || f["שם האירוע"] || ""),
+        date: dateHe,
+        time: String(f["שעה"] || ""),
+        place: String(f["מיקום לאתר"] || ""),
+        text: String(f["תיאור לאתר"] || ""),
+      };
+    });
+    const res = json({ events }, 200, { "Cache-Control": "public, max-age=600" });
+    await cache.put(cacheKey, res.clone());
+    return res;
   }
 
   /* --- יציאה --- */

@@ -1,4 +1,16 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+
+type LiveEvent = { title: string; date: string; time: string; place: string; text: string };
+function useLiveEvents() {
+  const [events, setEvents] = useState<LiveEvent[] | null>(null);
+  useEffect(() => {
+    fetch("/api/events")
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((d) => setEvents(Array.isArray(d?.events) && d.events.length ? d.events : null))
+      .catch(() => setEvents(null));
+  }, []);
+  return events;
+}
 import { Link } from "react-router-dom";
 import { CharacterHero, CONTACT, Reveal, Spark, Ticker, Wave } from "../components/shared";
 import { ABOUT, CONTACT_PAGE, ORCHESTRAS, PERFORMANCES } from "../content/site";
@@ -53,6 +65,7 @@ export function About() {
 
 /* ═══════════════ הופעות ═══════════════ */
 export function Performances() {
+  const live = useLiveEvents();
   return (
     <>
       <CharacterHero
@@ -110,12 +123,12 @@ export function Performances() {
           </Reveal>
           <div style={{ height: 24 }} />
           <div className="grid">
-            {PERFORMANCES.events.map((e) => (
+            {(live ?? PERFORMANCES.events.map((e) => ({ title: e.title, date: "", time: e.when, place: e.place, text: e.text }))).map((e) => (
               <Reveal key={e.title}>
                 <div className="card">
                   <h3>{e.title}</h3>
                   <p style={{ color: "var(--accent)", marginBottom: 6 }}>
-                    {e.when} · {e.place}
+                    {[e.date, e.time, e.place].filter(Boolean).join(" · ")}
                   </p>
                   <p>{e.text}</p>
                 </div>
@@ -155,6 +168,7 @@ export function Performances() {
 
 /* ═══════════════ תזמורות ═══════════════ */
 export function Orchestras() {
+  const live = useLiveEvents();
   const [pkg, setPkg] = useState<string | null>(null);
   const [addons, setAddons] = useState<string[]>([]);
 
@@ -302,12 +316,12 @@ export function Orchestras() {
           </Reveal>
           <div style={{ height: 22 }} />
           <div className="grid">
-            {ORCHESTRAS.events.map((e) => (
+            {(live ?? ORCHESTRAS.events.map((e) => ({ title: e.title, date: e.date, time: "", place: e.place, text: e.text }))).map((e) => (
               <Reveal key={e.title}>
                 <div className="card">
                   <h3>{e.title}</h3>
                   <p style={{ color: "var(--accent)", marginBottom: 6 }}>
-                    {e.date} · {e.place}
+                    {[e.date, e.time, e.place].filter(Boolean).join(" · ")}
                   </p>
                   <p>{e.text}</p>
                 </div>
