@@ -108,16 +108,16 @@ function Add-CommandResult {
   [void]$Builder.AppendLine("### $($Result.Title)")
   [void]$Builder.AppendLine("")
   [void]$Builder.AppendLine("Command:")
-  [void]$Builder.AppendLine("``````text")
+  [void]$Builder.AppendLine("~~~text")
   [void]$Builder.AppendLine($Result.Command)
-  [void]$Builder.AppendLine("``````")
+  [void]$Builder.AppendLine("~~~")
   [void]$Builder.AppendLine("")
-  [void]$Builder.AppendLine("Exit code: `$($Result.ExitCode)`")
+  [void]$Builder.AppendLine(("Exit code: {0}" -f $Result.ExitCode))
   [void]$Builder.AppendLine("")
   [void]$Builder.AppendLine("Output:")
-  [void]$Builder.AppendLine("``````text")
+  [void]$Builder.AppendLine("~~~text")
   [void]$Builder.AppendLine($Result.Output)
-  [void]$Builder.AppendLine("``````")
+  [void]$Builder.AppendLine("~~~")
 }
 
 function Get-RepoRoot {
@@ -187,13 +187,13 @@ $builder = New-Object System.Text.StringBuilder
 [void]$builder.AppendLine("")
 [void]$builder.AppendLine("Generated: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss zzz')")
 [void]$builder.AppendLine("")
-[void]$builder.AppendLine("Repository root: `$repoRoot`")
+[void]$builder.AppendLine("Repository root: $repoRoot")
 [void]$builder.AppendLine("")
-[void]$builder.AppendLine("Assumed Cloudflare Pages project name: `$ProjectName`")
+[void]$builder.AppendLine("Assumed Cloudflare Pages project name: $ProjectName")
 [void]$builder.AppendLine("")
 [void]$builder.AppendLine("> Safety note: this report should contain configuration names and command output only. Do not commit secret values or customer/member data.")
 
-Add-Section $builder "Local package.json" ("``````json`n$packageJson`n``````")
+Add-Section $builder "Local package.json" ("~~~json`n$packageJson`n~~~")
 
 foreach ($result in $results) {
   Add-CommandResult $builder $result
