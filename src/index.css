@@ -882,3 +882,14 @@ body { padding-top: 66px; }
 }
 .join-form input:focus { outline: 2px solid var(--accent); border-color: var(--accent); }
 @media (max-width: 620px) { .join-form { grid-template-columns: 1fr; } }
+
+/* אימות קולי בהרשמה */
+.declare-line { display: flex; align-items: center; gap: 10px; padding: 8px 0; cursor: pointer; }
+.declare-line input { width: 20px; height: 20px; accent-color: var(--accent); }
+.rec-pulse { animation: rec-pulse 1.2s ease-in-out infinite; }
+@keyframes rec-pulse { 50% { box-shadow: 0 0 0 10px rgba(201, 41, 42, 0.25); } }
+.archive-item {
+  display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  width: 100%; cursor: pointer; text-align: start; font: inherit; color: var(--text);
+}
+.archive-item:hover { border-color: var(--accent); }

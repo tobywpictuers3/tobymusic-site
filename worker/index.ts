@@ -6,6 +6,7 @@ export interface Env {
   ASSETS: Fetcher;
   DB: D1Database;
   BREVO_API_KEY: string;
+  BREVO_API_KEY_2: string;
   AIRTABLE_TOKEN: string;
 }
 
@@ -211,20 +212,112 @@ async function handleApi(req: Request, env: Env, url: URL): Promise<Response> {
     return json({ ok: true });
   }
 
-  /* --- הרשמה לתפוצה — פרוקסי לוורקר הרשמות הקיים (לוגיקה אחת) --- */
+  /* --- ארכיון התפוצה — למנויות מחוברות בלבד --- */
+  if (url.pathname === "/api/members/content") {
+    const m = await currentMember(req, env);
+    if (!m) return json({ error: "unauthorized" }, 401);
+
+    const id = url.searchParams.get("id");
+    const keys = [env.BREVO_API_KEY, env.BREVO_API_KEY_2].filter(Boolean);
+
+    if (id) {
+      // תוכן מלא של מייל אחד — מחפשים בשני החשבונות
+      const [acct, cid] = id.split(":");
+      const key = acct === "2" ? env.BREVO_API_KEY_2 : env.BREVO_API_KEY;
+      const r = await fetch(`https://api.brevo.com/v3/emailCampaigns/${cid}`, {
+        headers: { "api-key": key },
+      });
+      if (!r.ok) return json({ error: "not_found" }, 404);
+      const c = (await r.json()) as { subject?: string; htmlContent?: string; sentDate?: string };
+      return json({ subject: c.subject || "", html: c.htmlContent || "", sentDate: c.sentDate || "" });
+    }
+
+    // רשימת כל מה שנשלח, משני החשבונות
+    const items: { id: string; subject: string; name: string; sentDate: string }[] = [];
+    for (let i = 0; i < keys.length; i++) {
+      const r = await fetch("https://api.brevo.com/v3/emailCampaigns?status=sent&limit=100", {
+        headers: { "api-key": keys[i] },
+      });
+      if (!r.ok) continue;
+      const d = (await r.json()) as {
+        campaigns?: { id: number; subject?: string; name?: string; sentDate?: string }[];
+      };
+      for (const c of d.campaigns || []) {
+        items.push({
+          id: `${i + 1}:${c.id}`,
+          subject: c.subject || c.name || "",
+          name: c.name || "",
+          sentDate: c.sentDate || "",
+        });
+      }
+    }
+    items.sort((a, b) => (b.sentDate > a.sentDate ? 1 : -1));
+    return json({ items });
+  }
+
+  /* --- הרשמה לתפוצה — עם שכבת אימות: הצהרה + הקלטה קולית --- */
   if (url.pathname === "/api/join" && req.method === "POST") {
-    let body: { name?: string; email?: string } = {};
+    let body: {
+      name?: string; email?: string;
+      declareWoman?: boolean; declareNoShare?: boolean;
+      audio?: string; audioType?: string;
+    } = {};
     try { body = (await req.json()) as typeof body; } catch {}
     const name = String(body.name || "").trim().slice(0, 120);
     const email = String(body.email || "").trim().toLowerCase().slice(0, 160);
     if (!email.includes("@")) return json({ ok: false, error: "bad_email" }, 400);
+    if (!body.declareWoman || !body.declareNoShare)
+      return json({ ok: false, error: "missing_declarations" }, 400);
+    const audio = String(body.audio || "");
+    if (!audio || audio.length < 2000)
+      return json({ ok: false, error: "missing_audio" }, 400);
+    if (audio.length > 600_000) return json({ ok: false, error: "audio_too_large" }, 400);
+    const audioType = String(body.audioType || "audio/webm").slice(0, 60);
 
+    // שמירת ראיית האימות ב-D1 (טבלה ייעודית)
+    await env.DB.prepare(
+      `CREATE TABLE IF NOT EXISTS join_verifications (
+        id TEXT PRIMARY KEY, email TEXT, name TEXT,
+        declared_woman INTEGER, declared_noshare INTEGER,
+        audio_type TEXT, audio_b64 TEXT, created_at TEXT
+      )`
+    ).run();
+    await env.DB.prepare(
+      `INSERT INTO join_verifications (id, email, name, declared_woman, declared_noshare, audio_type, audio_b64, created_at)
+       VALUES (?, ?, ?, 1, 1, ?, ?, datetime('now'))`
+    )
+      .bind(crypto.randomUUID(), email, name, audioType, audio)
+      .run();
+
+    // ההרשמה עצמה — דרך הוורקר הקיים (לוגיקה אחת)
     const r = await fetch("https://toby-mailing-list.w0504124161.workers.dev/subscribe_request", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ name, email, source: "tobymusic.club", newsletterOptIn: true }),
     });
     const data = (await r.json().catch(() => ({}))) as Record<string, unknown>;
+
+    // מייל לטובי עם ההקלטה מצורפת — כשל כאן לא מפיל את ההרשמה
+    try {
+      const ext = audioType.includes("mp4") ? "m4a" : audioType.includes("ogg") ? "ogg" : "webm";
+      await fetch("https://api.brevo.com/v3/smtp/email", {
+        method: "POST",
+        headers: { "api-key": env.BREVO_API_KEY, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sender: { name: "האתר tobymusic.club", email: "toby@tobybymusic.com" },
+          to: [{ email: "tobyw.tobymusic@gmail.com" }],
+          subject: `🎙️ נרשמת חדשה עם אימות קולי: ${name || email}`,
+          htmlContent: `<div dir="rtl" style="font-family:Heebo,Arial,sans-serif;">
+            <h3>נרשמת חדשה מהאתר — עם הצהרה והקלטה</h3>
+            <p><b>שם:</b> ${name || "—"}<br/><b>מייל:</b> ${email}</p>
+            <p>✔ הצהירה שהיא אישה &nbsp; ✔ התחייבה שהתכנים לא יועברו הלאה</p>
+            <p>ההקלטה הקולית מצורפת למייל זה. עותק נשמר גם במסד הנתונים.</p>
+          </div>`,
+          attachment: [{ name: `verification-${Date.now()}.${ext}`, content: audio }],
+        }),
+      });
+    } catch {}
+
     return json(data, r.status);
   }
 

@@ -16,6 +16,9 @@ export default function Members() {
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [tab, setTab] = useState(SECTIONS[0].id);
+  const [archive, setArchive] = useState<{ id: string; subject: string; sentDate: string }[] | null>(null);
+  const [openItem, setOpenItem] = useState<{ subject: string; html: string } | null>(null);
+  const [loadingItem, setLoadingItem] = useState(false);
 
   useEffect(() => {
     const login = new URLSearchParams(window.location.search).get("login");
@@ -30,6 +33,28 @@ export default function Members() {
       })
       .catch(() => setAuth("guest"));
   }, []);
+
+  useEffect(() => {
+    if (auth !== "member") return;
+    fetch("/api/members/content")
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((d) => setArchive(d?.items || []))
+      .catch(() => setArchive([]));
+  }, [auth]);
+
+  const openArchiveItem = async (id: string) => {
+    setLoadingItem(true);
+    setOpenItem(null);
+    try {
+      const r = await fetch(`/api/members/content?id=${encodeURIComponent(id)}`);
+      if (!r.ok) throw new Error();
+      const d = await r.json();
+      setOpenItem({ subject: d.subject, html: d.html });
+    } catch {
+      setOpenItem({ subject: "שגיאה", html: "<p dir='rtl'>לא הצלחנו לטעון את התוכן — נסי שוב.</p>" });
+    }
+    setLoadingItem(false);
+  };
 
   const logout = async () => {
     await fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
@@ -84,15 +109,58 @@ export default function Members() {
                   </button>
                 ))}
               </div>
-              {SECTIONS.filter((s) => s.id === tab).map((s) => (
-                <div key={s.id} className="card center">
-                  <div className="card-icon" style={{ fontSize: "2rem" }}>{s.icon}</div>
-                  <h3>{s.label}</h3>
-                  <p style={{ color: "var(--text-soft)" }}>
-                    התכנים הראשונים בדרך — ברגע שיעלו, הם יחכו לך כאן.
-                  </p>
+              {tab === "articles" ? (
+                <div>
+                  {openItem ? (
+                    <div className="card">
+                      <button className="btn-secondary" onClick={() => setOpenItem(null)}>
+                        → חזרה לרשימה
+                      </button>
+                      <h3 style={{ marginTop: 14 }}>{openItem.subject}</h3>
+                      <iframe
+                        title={openItem.subject}
+                        sandbox=""
+                        srcDoc={openItem.html}
+                        style={{
+                          width: "100%", minHeight: "70vh", border: "1px solid var(--line)",
+                          borderRadius: 10, background: "#fff",
+                        }}
+                      />
+                    </div>
+                  ) : (
+                    <>
+                      <p className="center" style={{ color: "var(--text-soft)" }}>
+                        כל מה שנשלח בתפוצה — במקום אחד, רק בשבילך.
+                      </p>
+                      {loadingItem && <div className="notice center">טוענת…</div>}
+                      {archive === null && <div className="notice center">טוענת את הארכיון…</div>}
+                      {archive?.length === 0 && (
+                        <div className="card center"><p style={{ marginBottom: 0 }}>הארכיון עוד מתמלא — בקרוב.</p></div>
+                      )}
+                      <div style={{ display: "grid", gap: 10 }}>
+                        {archive?.map((a) => (
+                          <button key={a.id} className="card archive-item" onClick={() => openArchiveItem(a.id)}>
+                            <span style={{ fontWeight: 700 }}>{a.subject}</span>
+                            <span style={{ color: "var(--text-faint)", fontSize: "0.85rem" }}>
+                              {a.sentDate ? new Date(a.sentDate).toLocaleDateString("he-IL") : ""}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
                 </div>
-              ))}
+              ) : (
+                SECTIONS.filter((s) => s.id === tab).map((s) => (
+                  <div key={s.id} className="card center">
+                    <div className="card-icon" style={{ fontSize: "2rem" }}>{s.icon}</div>
+                    <h3>{s.label}</h3>
+                    <p style={{ color: "var(--text-soft)" }}>
+                      התכנים הראשונים בדרך — ברגע שיעלו, הם יחכו לך כאן.
+                    </p>
+                  </div>
+                ))
+              )}
               <div style={{ height: 20 }} />
               <div className="center">
                 <button className="btn-secondary" onClick={logout}>יציאה</button>
