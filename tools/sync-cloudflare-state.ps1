@@ -14,7 +14,7 @@
   powershell -ExecutionPolicy Bypass -File .\tools\sync-cloudflare-state.ps1
 
 .EXAMPLE
-  powershell -ExecutionPolicy Bypass -File .\tools\sync-cloudflare-state.ps1 -ProjectName "tobymusic-site" -AccountId "YOUR_ACCOUNT_ID"
+  powershell -ExecutionPolicy Bypass -File .\tools\sync-cloudflare-state.ps1 -AccountId "YOUR_ACCOUNT_ID"
 #>
 
 [CmdletBinding()]
@@ -134,7 +134,23 @@ Set-Location $repoRoot
 
 if (-not (Test-Path "docs")) { New-Item -ItemType Directory -Path "docs" | Out-Null }
 
-# Default Cloudflare Pages project name from package.json name, if present.
+# Read local config early so account/project defaults can come from wrangler.jsonc.
+$wranglerConfig = "(wrangler.jsonc not found)"
+$wranglerJson = $null
+if (Test-Path "wrangler.jsonc") {
+  $wranglerConfig = Get-Content "wrangler.jsonc" -Raw
+  try { $wranglerJson = $wranglerConfig | ConvertFrom-Json } catch {}
+}
+
+$projectMode = "unknown"
+if ($wranglerJson -and $wranglerJson.main) {
+  if ($wranglerJson.assets) { $projectMode = "worker-with-assets" } else { $projectMode = "worker" }
+}
+
+# Default project/worker name.
+if ([string]::IsNullOrWhiteSpace($ProjectName) -and $wranglerJson -and $wranglerJson.name) {
+  $ProjectName = [string]$wranglerJson.name
+}
 if ([string]::IsNullOrWhiteSpace($ProjectName) -and (Test-Path "package.json")) {
   try {
     $pkg = Get-Content "package.json" -Raw | ConvertFrom-Json
@@ -143,9 +159,12 @@ if ([string]::IsNullOrWhiteSpace($ProjectName) -and (Test-Path "package.json")) 
 }
 if ([string]::IsNullOrWhiteSpace($ProjectName)) { $ProjectName = "tobymusic-site" }
 
-# Allow the user to choose a Cloudflare account when Wrangler sees multiple accounts.
+# Allow the user/config/environment to choose a Cloudflare account when Wrangler sees multiple accounts.
 if ([string]::IsNullOrWhiteSpace($AccountId) -and -not [string]::IsNullOrWhiteSpace($env:CLOUDFLARE_ACCOUNT_ID)) {
   $AccountId = $env:CLOUDFLARE_ACCOUNT_ID
+}
+if ([string]::IsNullOrWhiteSpace($AccountId) -and $wranglerJson -and $wranglerJson.account_id) {
+  $AccountId = [string]$wranglerJson.account_id
 }
 if (-not [string]::IsNullOrWhiteSpace($AccountId)) {
   [Environment]::SetEnvironmentVariable("CLOUDFLARE_ACCOUNT_ID", $AccountId, "Process")
@@ -178,15 +197,26 @@ if ($whoami.ExitCode -ne 0 -and -not $SkipCloudflareLogin) {
 
 if ([string]::IsNullOrWhiteSpace($env:CLOUDFLARE_ACCOUNT_ID)) {
   Write-Host ""
-  Write-Host "If Wrangler reports 'More than one account available', rerun with -AccountId or set `$env:CLOUDFLARE_ACCOUNT_ID first." -ForegroundColor Yellow
+  Write-Host "If Wrangler reports 'More than one account available', rerun with -AccountId or add account_id to wrangler.jsonc." -ForegroundColor Yellow
 }
 
-# Cloudflare Pages / Workers information. Some commands may fail depending on account permissions and project type.
+# Cloudflare information. This project is expected to be a Worker with assets, not a Pages project.
 $results.Add((Invoke-External "Cloudflare Pages project list" "$wrangler pages project list" 120))
-$results.Add((Invoke-External "Cloudflare Pages deployments for $ProjectName" "$wrangler pages deployment list --project-name $ProjectName" 120))
-$results.Add((Invoke-External "Cloudflare Pages production deployments for $ProjectName" "$wrangler pages deployment list --project-name $ProjectName --environment production" 120))
-$results.Add((Invoke-External "Cloudflare Pages secret names for $ProjectName" "$wrangler pages secret list --project-name $ProjectName" 120))
+if ($projectMode -eq "worker" -or $projectMode -eq "worker-with-assets") {
+  $results.Add([pscustomobject]@{
+    Title = "Cloudflare Pages deployment lookup skipped"
+    Command = "(skipped)"
+    ExitCode = 0
+    Output = "This repository uses wrangler.jsonc main=$($wranglerJson.main) and assets, so tobymusic-site is handled as a Cloudflare Worker, not a Cloudflare Pages project."
+  })
+} else {
+  $results.Add((Invoke-External "Cloudflare Pages deployments for $ProjectName" "$wrangler pages deployment list --project-name $ProjectName" 120))
+  $results.Add((Invoke-External "Cloudflare Pages production deployments for $ProjectName" "$wrangler pages deployment list --project-name $ProjectName --environment production" 120))
+  $results.Add((Invoke-External "Cloudflare Pages secret names for $ProjectName" "$wrangler pages secret list --project-name $ProjectName" 120))
+}
+
 $results.Add((Invoke-External "Cloudflare Worker deployments for configured Worker" "$wrangler deployments list" 120))
+$results.Add((Invoke-External "Cloudflare Worker secret names" "$wrangler secret list" 120))
 $results.Add((Invoke-External "Cloudflare KV namespaces" "$wrangler kv namespace list" 120))
 $results.Add((Invoke-External "Cloudflare D1 databases" "$wrangler d1 list" 120))
 $results.Add((Invoke-External "Cloudflare R2 buckets" "$wrangler r2 bucket list" 120))
@@ -197,11 +227,6 @@ if (Test-Path "package.json") {
   $packageJson = Get-Content "package.json" -Raw
 }
 
-$wranglerConfig = "(wrangler.jsonc not found)"
-if (Test-Path "wrangler.jsonc") {
-  $wranglerConfig = Get-Content "wrangler.jsonc" -Raw
-}
-
 $builder = New-Object System.Text.StringBuilder
 [void]$builder.AppendLine("# Cloudflare State Report")
 [void]$builder.AppendLine("")
@@ -209,7 +234,9 @@ $builder = New-Object System.Text.StringBuilder
 [void]$builder.AppendLine("")
 [void]$builder.AppendLine("Repository root: $repoRoot")
 [void]$builder.AppendLine("")
-[void]$builder.AppendLine("Assumed Cloudflare Pages project name: $ProjectName")
+[void]$builder.AppendLine("Detected project mode: $projectMode")
+[void]$builder.AppendLine("")
+[void]$builder.AppendLine("Configured Worker/Project name: $ProjectName")
 [void]$builder.AppendLine("")
 [void]$builder.AppendLine("Selected Cloudflare account id: $($env:CLOUDFLARE_ACCOUNT_ID)")
 [void]$builder.AppendLine("")
