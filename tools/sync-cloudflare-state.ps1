@@ -14,12 +14,13 @@
   powershell -ExecutionPolicy Bypass -File .\tools\sync-cloudflare-state.ps1
 
 .EXAMPLE
-  powershell -ExecutionPolicy Bypass -File .\tools\sync-cloudflare-state.ps1 -ProjectName "tobymusic-site"
+  powershell -ExecutionPolicy Bypass -File .\tools\sync-cloudflare-state.ps1 -ProjectName "tobymusic-site" -AccountId "YOUR_ACCOUNT_ID"
 #>
 
 [CmdletBinding()]
 param(
   [string]$ProjectName = "",
+  [string]$AccountId = "",
   [string]$OutputPath = "docs/cloudflare-state.md",
   [switch]$SkipCloudflareLogin,
   [switch]$NoGitPush
@@ -142,6 +143,15 @@ if ([string]::IsNullOrWhiteSpace($ProjectName) -and (Test-Path "package.json")) 
 }
 if ([string]::IsNullOrWhiteSpace($ProjectName)) { $ProjectName = "tobymusic-site" }
 
+# Allow the user to choose a Cloudflare account when Wrangler sees multiple accounts.
+if ([string]::IsNullOrWhiteSpace($AccountId) -and -not [string]::IsNullOrWhiteSpace($env:CLOUDFLARE_ACCOUNT_ID)) {
+  $AccountId = $env:CLOUDFLARE_ACCOUNT_ID
+}
+if (-not [string]::IsNullOrWhiteSpace($AccountId)) {
+  [Environment]::SetEnvironmentVariable("CLOUDFLARE_ACCOUNT_ID", $AccountId, "Process")
+  $env:CLOUDFLARE_ACCOUNT_ID = $AccountId
+}
+
 $wrangler = "npx --yes wrangler"
 $results = New-Object System.Collections.Generic.List[object]
 
@@ -166,12 +176,17 @@ if ($whoami.ExitCode -ne 0 -and -not $SkipCloudflareLogin) {
   }
 }
 
-# Cloudflare Pages / Workers information. Some commands may fail depending on account permissions and Wrangler version.
+if ([string]::IsNullOrWhiteSpace($env:CLOUDFLARE_ACCOUNT_ID)) {
+  Write-Host ""
+  Write-Host "If Wrangler reports 'More than one account available', rerun with -AccountId or set `$env:CLOUDFLARE_ACCOUNT_ID first." -ForegroundColor Yellow
+}
+
+# Cloudflare Pages / Workers information. Some commands may fail depending on account permissions and project type.
 $results.Add((Invoke-External "Cloudflare Pages project list" "$wrangler pages project list" 120))
-$results.Add((Invoke-External "Cloudflare Pages deployments for $ProjectName" "$wrangler pages deployment list $ProjectName" 120))
-$results.Add((Invoke-External "Cloudflare Pages production deployments for $ProjectName" "$wrangler pages deployment list $ProjectName --environment production" 120))
+$results.Add((Invoke-External "Cloudflare Pages deployments for $ProjectName" "$wrangler pages deployment list --project-name $ProjectName" 120))
+$results.Add((Invoke-External "Cloudflare Pages production deployments for $ProjectName" "$wrangler pages deployment list --project-name $ProjectName --environment production" 120))
 $results.Add((Invoke-External "Cloudflare Pages secret names for $ProjectName" "$wrangler pages secret list --project-name $ProjectName" 120))
-$results.Add((Invoke-External "Cloudflare Workers list" "$wrangler deployments list" 120))
+$results.Add((Invoke-External "Cloudflare Worker deployments for configured Worker" "$wrangler deployments list" 120))
 $results.Add((Invoke-External "Cloudflare KV namespaces" "$wrangler kv namespace list" 120))
 $results.Add((Invoke-External "Cloudflare D1 databases" "$wrangler d1 list" 120))
 $results.Add((Invoke-External "Cloudflare R2 buckets" "$wrangler r2 bucket list" 120))
@@ -180,6 +195,11 @@ $results.Add((Invoke-External "Cloudflare R2 buckets" "$wrangler r2 bucket list"
 $packageJson = "(package.json not found)"
 if (Test-Path "package.json") {
   $packageJson = Get-Content "package.json" -Raw
+}
+
+$wranglerConfig = "(wrangler.jsonc not found)"
+if (Test-Path "wrangler.jsonc") {
+  $wranglerConfig = Get-Content "wrangler.jsonc" -Raw
 }
 
 $builder = New-Object System.Text.StringBuilder
@@ -191,9 +211,12 @@ $builder = New-Object System.Text.StringBuilder
 [void]$builder.AppendLine("")
 [void]$builder.AppendLine("Assumed Cloudflare Pages project name: $ProjectName")
 [void]$builder.AppendLine("")
+[void]$builder.AppendLine("Selected Cloudflare account id: $($env:CLOUDFLARE_ACCOUNT_ID)")
+[void]$builder.AppendLine("")
 [void]$builder.AppendLine("> Safety note: this report should contain configuration names and command output only. Do not commit secret values or customer/member data.")
 
 Add-Section $builder "Local package.json" ("~~~json`n$packageJson`n~~~")
+Add-Section $builder "Local wrangler.jsonc" ("~~~jsonc`n$wranglerConfig`n~~~")
 
 foreach ($result in $results) {
   Add-CommandResult $builder $result
@@ -223,6 +246,8 @@ if (-not $NoGitPush) {
   if ($pushAnswer -match "^[Yy]") {
     $branchName = "cloudflare-state-" + (Get-Date -Format "yyyyMMdd-HHmmss")
     $gitResults = New-Object System.Collections.Generic.List[object]
+    $gitResults.Add((Invoke-External "Return to main" "git checkout main" 30))
+    $gitResults.Add((Invoke-External "Pull latest main" "git pull" 60))
     $gitResults.Add((Invoke-External "Create report branch" "git checkout -b $branchName" 30))
     $gitResults.Add((Invoke-External "Stage Cloudflare report" "git add $OutputPath" 30))
     $gitResults.Add((Invoke-External "Commit Cloudflare report" "git commit -m ""docs: update cloudflare state report""" 60))
