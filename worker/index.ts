@@ -360,7 +360,7 @@ async function handleApi(req: Request, env: Env, url: URL): Promise<Response> {
           await fetch("https://api.brevo.com/v3/contacts", {
             method: "POST",
             headers: { "api-key": env.BREVO_API_KEY_2, "Content-Type": "application/json" },
-            body: JSON.stringify({ email: ver.email, updateEnabled: true, listIds: [3], attributes: { FIRSTNAME: ver.name || "" } }),
+            body: JSON.stringify({ email: ver.email, updateEnabled: true, listIds: [4], attributes: { FIRSTNAME: ver.name || "" } }),
           });
           await fetch("https://api.brevo.com/v3/smtp/email", {
             method: "POST",
@@ -585,7 +585,7 @@ async function handleApi(req: Request, env: Env, url: URL): Promise<Response> {
           body: JSON.stringify({
             email: ver.email,
             updateEnabled: true,
-            listIds: [3],
+            listIds: [4],
             attributes: { FIRSTNAME: ver.name || "" },
           }),
         });
