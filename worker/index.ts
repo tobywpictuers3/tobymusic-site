@@ -39,6 +39,12 @@ function getCookie(req: Request, name: string): string | null {
   const m = c.match(new RegExp(`(?:^|;\\s*)${name}=([^;]+)`));
   return m ? m[1] : null;
 }
+// עוטפים כל טקסט שמגיע ממשתמש קצה לפני הזרקה ל-HTML של מייל, כדי למנוע הזרקת קישורים/תגיות מזויפות
+function esc(s: unknown): string {
+  return String(s ?? "").replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] as string)
+  );
+}
 
 /* ---------- מייל קישור כניסה ---------- */
 function loginEmailHtml(name: string | null, link: string): string {
@@ -241,10 +247,10 @@ async function handleApi(req: Request, env: Env, url: URL): Promise<Response> {
           htmlContent: `<div dir="rtl" style="font-family:Heebo,Arial,sans-serif;max-width:560px;margin:0 auto;">
             <div style="background:#0F0F12;border-radius:12px;padding:26px;color:#F5F1EA;">
               <h2 style="color:#FFE5A0;margin:0 0 14px;">פנייה חדשה מטופס הקשר ✨</h2>
-              <p><b style="color:#C9A961;">שם:</b> ${name}</p>
-              <p><b style="color:#C9A961;">יצירת קשר:</b> ${[email, phone].filter(Boolean).join(" | ")}</p>
-              <p><b style="color:#C9A961;">נושאים:</b> ${topics || "—"}</p>
-              <p><b style="color:#C9A961;">פירוט:</b><br/>${details.replace(/\n/g, "<br/>") || "—"}</p>
+              <p><b style="color:#C9A961;">שם:</b> ${esc(name)}</p>
+              <p><b style="color:#C9A961;">יצירת קשר:</b> ${esc([email, phone].filter(Boolean).join(" | "))}</p>
+              <p><b style="color:#C9A961;">נושאים:</b> ${esc(topics) || "—"}</p>
+              <p><b style="color:#C9A961;">פירוט:</b><br/>${esc(details).replace(/\n/g, "<br/>") || "—"}</p>
             </div>
           </div>`,
         }),
@@ -521,8 +527,8 @@ async function handleApi(req: Request, env: Env, url: URL): Promise<Response> {
           body: JSON.stringify({
             sender: { name: "האתר tobymusic.club", email: "toby@tobybymusic.com" },
             to: [{ email: "tobyw.tobymusic@gmail.com" }],
-            subject: `💬 הודעה חדשה מ-${m.name || m.email} באזור המנויות`,
-            htmlContent: wrapNewsletterHtml("", `<b>${m.name || m.email}</b> כתבה:<br/><br/>${bodyTxt.replace(/\n/g, "<br/>")}<br/><br/><a href="${SITE}/admin">למענה מתוך האתר</a>`),
+            subject: `💬 הודעה חדשה מ-${esc(m.name || m.email)} באזור המנויות`,
+            htmlContent: wrapNewsletterHtml("", `<b>${esc(m.name || m.email)}</b> כתבה:<br/><br/>${esc(bodyTxt).replace(/\n/g, "<br/>")}<br/><br/><a href="${SITE}/admin">למענה מתוך האתר</a>`),
           }),
         });
       } catch {}
@@ -724,7 +730,7 @@ async function handleApi(req: Request, env: Env, url: URL): Promise<Response> {
           htmlContent: `<div dir="rtl" style="font-family:Heebo,Arial,sans-serif;max-width:560px;margin:0 auto;">
             <div style="background:#0F0F12;border-radius:12px;padding:26px;color:#F5F1EA;">
               <h2 style="color:#FFE5A0;margin:0 0 14px;">נרשמת חדשה ממתינה לאישורך</h2>
-              <p><b style="color:#C9A961;">שם:</b> ${name || "—"}<br/><b style="color:#C9A961;">מייל:</b> ${email}</p>
+              <p><b style="color:#C9A961;">שם:</b> ${esc(name) || "—"}<br/><b style="color:#C9A961;">מייל:</b> ${esc(email)}</p>
               <p>✔ הצהירה שהיא אישה &nbsp; ✔ התחייבה שהתכנים לא יועברו הלאה<br/>🎙️ ההקלטה מצורפת למייל — האזיני לפני ההחלטה.</p>
               <div style="text-align:center;margin:22px 0 6px;">
                 <a href="${SITE}/api/admin/decide?v=${verId}&t=${decideToken}&a=approve"
