@@ -1,7 +1,6 @@
-name: Deploy to Cloudflare
+name: Deploy to Cloudflare (DISABLED — see README)
 on:
-  push:
-    branches: [main]
+  workflow_dispatch:
 jobs:
   deploy:
     runs-on: ubuntu-latest
